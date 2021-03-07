@@ -1,0 +1,177 @@
+# data file for the Fltk User Interface Designer (fluid)
+version 1.0110 
+i18n_type 1 
+i18n_include  
+i18n_function $ 
+header_name {.h} 
+code_name {.cpp.h}
+Function {MakeWindow()} {open private
+} {
+  Fl_Window pMainWnd {
+    label {Dark FM Selector} open
+    xywh {348 287 630 380} type Double resizable size_range {630 380 0 0} visible
+  } {
+    Fl_File_Browser pFMList {selected
+      xywh {5 80 620 255} selection_color 230 labelsize 10 when 4 textfont 1 resizable
+      code0 {pFMList->selection_color( fl_rgb_color(170,238,255) );}
+      code1 {o->labelsize(FL_NORMAL_SIZE-2);}
+      class Fl_FM_List
+    }
+    Fl_Group pGroupBottom {open
+      private xywh {5 348 620 32}
+    } {
+      Fl_Button pBtnSkipFM {
+        label {Skip FM}
+        callback OnPlayOM
+        private tooltip {Launch without FM} xywh {5 348 120 25} shortcut 0xff1b align 20
+        code0 {o->image(imgPlay);}
+        code1 {o->labeltype(IMAGETEXT_LABEL);}
+      }
+      Fl_Return_Button pBtnPlayFM {
+        label {Play FM}
+        callback OnPlayFM
+        private tooltip {Launch selected FM} xywh {136 348 120 25} labelsize 12 align 20
+        code0 {o->image(imgPlayFM);}
+        code1 {o->deimage(pImgPlayFMGray);}
+        code2 {o->labeltype(IMAGETEXT_LABEL);}
+        code3 {o->labelsize(FL_NORMAL_SIZE);}
+        class Fl_FM_Return_Button
+      }
+      Fl_Button pBtnStartFM {
+        label {Start FM}
+        callback OnStartFM
+        private tooltip {Launch selected FM and change status to 'Playing'} xywh {263 348 120 25} align 20
+        code0 {o->image(imgStartFM);}
+        code1 {o->deimage(pImgStartFMGray);}
+        code2 {o->labeltype(IMAGETEXT_LABEL);}
+      }
+      Fl_Button {} {
+        label Exit
+        callback OnExit
+        xywh {525 348 100 25}
+      }
+      Fl_Group {} {open
+        xywh {395 348 14 25} hide resizable
+      } {}
+      Fl_Menu_Button {} {open
+        tooltip {Options/Tasks menu} xywh {411 348 44 25} labelsize 12 align 20
+        code0 {o->image(imgOptions);}
+        code1 {o->labelsize(FL_NORMAL_SIZE);}
+        class Fl_FM_Config_Button
+      } {}
+    }
+    Fl_Group pGroupTop {open
+      private xywh {5 5 620 40}
+    } {
+      Fl_Input pFilterName {
+        label Name
+        callback OnFilterName
+        private tooltip {Only show FMs whose names contain this sub-string} xywh {5 20 180 24} labelsize 11 align 5 textsize 12
+        code0 {o->when(FL_WHEN_ENTER_KEY | FL_WHEN_CHANGED | FL_WHEN_RELEASE_ALWAYS);}
+        code1 {o->textsize(FL_NORMAL_SIZE);}
+        class Fl_FM_Filter_Input
+      }
+      Fl_Choice pFilterRating {
+        label {Min Rating}
+        callback OnFilterRating open
+        private tooltip {Show  FMs with a minimum rating of} xywh {195 20 55 24} down_box BORDER_BOX labelsize 11 align 5
+        code0 {o->menu(g_mnuFiltRating);}
+      } {}
+      Fl_Choice pFilterPrio {
+        label {Min Pri}
+        callback OnFilterPriority open
+        private tooltip {Show  FMs with a minimum priority of} xywh {260 20 55 24} down_box BORDER_BOX labelsize 11 align 5
+        code0 {o->menu(g_mnuFiltPrio);}
+      } {}
+      Fl_Box {} {
+        label Status
+        xywh {322 6 45 15} labelsize 11 align 21
+      }
+      Fl_Button pFilterNotPlayed {
+        user_data 1
+        callback OnFilterToggle
+        private tooltip {Show FMs that haven't been completed or currently in progress} xywh {325 20 30 24} type Toggle
+        code0 {o->image(imgNotPlayed);}
+        code1 {o->deimage(imgNotPlayed);}
+        code2 {o->down_color(TOGBTN_DN_CLR);}
+        class Fl_FM_Filter_Button
+      }
+      Fl_Button pFilterCompleted {
+        user_data 2
+        callback OnFilterToggle
+        private tooltip {Show completed FMs} xywh {354 20 30 24} type Toggle
+        code0 {o->image(imgCheck);}
+        code1 {o->deimage(pImgCheckGray);}
+        code2 {o->down_color(TOGBTN_DN_CLR);}
+        class Fl_FM_Filter_Button
+      }
+      Fl_Button pFilterInProgress {
+        user_data 3
+        callback OnFilterToggle
+        private tooltip {Show FMs with a playthrough in progress} xywh {383 20 30 24} type Toggle
+        code0 {o->image(imgProgress);}
+        code1 {o->deimage(pImgProgressGray);}
+        code2 {o->down_color(TOGBTN_DN_CLR);}
+        class Fl_FM_Filter_Button
+      }
+      Fl_Box {} {
+        label Avail
+        xywh {420 6 35 15} labelsize 11 align 21
+      }
+      Fl_Button pFilterArchived {
+        user_data 5
+        callback OnFilterToggle
+        private tooltip {Show archived FMs that aren't installed} xywh {423 20 30 24} type Toggle
+        code0 {o->image(imgArchived);}
+        code1 {o->deimage(pImgArchivedGray);}
+        code2 {o->down_color(TOGBTN_DN_CLR);}
+        class Fl_FM_Filter_Button
+      }
+      Fl_Button pFilterNotAvail {
+        user_data 4
+        callback OnFilterToggle
+        private tooltip {Show FMs that aren't available} xywh {452 20 30 24} type Toggle
+        code0 {o->image(imgNotAvail);}
+        code1 {o->deimage(pImgNotAvailGray);}
+        code2 {o->down_color(TOGBTN_DN_CLR);}
+        class Fl_FM_Filter_Button
+      }
+      Fl_Input pFilterRelDateFrom {
+        label {Rel. Year}
+        callback OnFilterRelFrom
+        private tooltip {Show FMs released from year (YY), leave empty for no lower limit} xywh {491 20 25 24} type Int labelsize 11 align 5 when 8 textsize 12
+        code0 {o->maximum_size(2);}
+        code1 {o->when(FL_WHEN_ENTER_KEY | FL_WHEN_RELEASE);}
+        code2 {o->textsize(FL_NORMAL_SIZE);}
+        class Fl_FM_Filter_Input
+      }
+      Fl_Input pFilterRelDateTo {
+        label {-}
+        callback OnFilterRelTo
+        private tooltip {Show FMs released up to and including year (YY), leave empty for no upper limit} xywh {527 20 25 24} type Int labelsize 11 when 8 textsize 12
+        code0 {o->maximum_size(2);}
+        code1 {o->when(FL_WHEN_ENTER_KEY | FL_WHEN_RELEASE);}
+        code2 {o->textsize(FL_NORMAL_SIZE);}
+        class Fl_FM_Filter_Input
+      }
+      Fl_Group {} {open
+        xywh {557 5 4 40} hide resizable
+      } {}
+      Fl_Button {} {
+        callback OnRefreshFilters
+        tooltip {Refresh list to apply filter and sorting to status changes etc.} xywh {562 20 30 24}
+        code0 {o->image(imgRefresh);}
+      }
+      Fl_Button {} {
+        callback OnResetFilters
+        tooltip {Reset to default filter settings} xywh {595 20 30 24}
+        code0 {o->image(imgResetFilters);}
+      }
+    }
+    Fl_Group pTagFilterGroup {open
+      private xywh {5 50 620 21} box FLAT_BOX color 16
+      code0 {o->color( fl_rgb_color(226,226,217) );}
+      class Fl_FM_TagFilter_Group
+    } {}
+  }
+} 

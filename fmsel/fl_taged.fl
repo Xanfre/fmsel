@@ -1,0 +1,160 @@
+# data file for the Fltk User Interface Designer (fluid)
+version 1.0110 
+i18n_type 1 
+i18n_include  
+i18n_function $ 
+header_name {.h} 
+code_name {.cpp.h}
+Function {MakeTagEditor()} {open private
+} {
+  Fl_Window pTagEdWnd {
+    label FMSel open
+    xywh {348 288 540 260} type Double resizable
+    class Fl_FM_TagEd_Window modal size_range {540 260 0 0} visible
+  } {
+    Fl_Tabs pTagEdTabs {open
+      private xywh {0 4 544 215} resizable
+    } {
+      Fl_Group {} {
+        label Misc open
+        xywh {0 22 540 197} labelfont 1 labelsize 11 labelcolor 8 resizable
+        code0 {o->labelsize(FL_NORMAL_SIZE-1);}
+      } {
+        Fl_Group {} {open
+          xywh {6 29 528 134}
+        } {
+          Fl_Input pTagEdNiceName {
+            label {Display Name}
+            private tooltip {Optional name to display in list instead of directory name} xywh {6 43 250 25} labelsize 11 align 5 when 1 resizable
+          }
+          Fl_Output pTagEdName {
+            label {Directory Name}
+            private tooltip {Directory name (default name displayed in list)} xywh {6 90 250 25} labelsize 11 align 5
+            code0 {o->color(FL_GRAY0+19);}
+          }
+          Fl_Output pTagEdArchive {
+            label {Archive  Name}
+            private tooltip {Archive file associated with this FM} xywh {6 137 250 25} labelsize 11 align 5
+            code0 {o->color(FL_GRAY0+19);}
+          }
+          Fl_Choice pTagEdInfoFile {
+            label {Info File} open
+            private tooltip {FM info/readme file} xywh {278 43 225 25} down_box BORDER_BOX labelsize 11 align 5
+          } {}
+          Fl_Button pTagEdViewInfo {
+            callback OnTagEdViewInfoFile
+            private tooltip {View/Open info file} xywh {508 43 26 25} labelsize 12 align 16
+            code0 {o->image(imgViewFile);}
+            code1 {o->deimage(pImgViewFileGray);}
+          }
+          Fl_Box {} {
+            label {Release Date}
+            xywh {276 76 115 16} labelsize 11 align 20
+          }
+          Fl_Input pTagEdRelYear {
+            label Year
+            private tooltip {Release date year (YYYY)} xywh {278 90 40 25} type Int labelsize 10 align 2 when 1
+          }
+          Fl_Box {} {
+            label {-}
+            xywh {320 90 10 25}
+          }
+          Fl_Input pTagEdRelMonth {
+            label Month
+            private tooltip {Release date month (1-12)} xywh {331 91 25 24} type Int labelsize 10 align 2 when 1
+          }
+          Fl_Box {} {
+            label {-}
+            xywh {358 90 10 25}
+          }
+          Fl_Input pTagEdRelDay {
+            label Day
+            private tooltip {Release date day (1-31)} xywh {368 90 25 25} type Int labelsize 10 align 2 when 1
+          }
+          Fl_Check_Button pTagEdUnverified {
+            label Unverified
+            private tooltip {Release date is unverified (usually set for automatically scanned date)} xywh {402 92 125 21} down_box DOWN_BOX
+          }
+        }
+        Fl_Group {} {open
+          xywh {6 164 528 4} resizable
+        } {}
+        Fl_Input pTagEdModExclude {
+          label {Mod Path Excludes}
+          private tooltip {Mod paths to exclude when running this FM (use + to separate paths)} xywh {6 183 528 25} labelsize 11 align 5 when 1
+        }
+      }
+      Fl_Group {} {
+        label Tags open
+        xywh {0 22 544 197} labelfont 1 labelsize 11 labelcolor 8 hide
+        code0 {o->labelsize(FL_NORMAL_SIZE-1);}
+      } {
+        Fl_Group {} {open
+          private xywh {6 28 528 45}
+        } {
+          Fl_Input pTagEdInput {
+            label {Add Tag}
+            private tooltip {Press enter to add tag} xywh {6 43 242 25} labelsize 11 align 5 when 1 textsize 12
+            code0 {o->tag_callback((Fl_Callback*)OnAddCustomTag);}
+            code1 {o->textsize(FL_NORMAL_SIZE);}
+            class Fl_FM_Tag_Input
+          }
+          Fl_Button pTagEdAddTag {
+            callback OnTagEdAddTag
+            tooltip {Add Tag} xywh {251 43 26 25} labelsize 12 align 16
+            code0 {o->image(imgReturn);}
+            code1 {o->deimage(imgReturnGray);}
+          }
+          Fl_Group {} {open
+            xywh {283 28 96 33} hide resizable
+          } {}
+          Fl_Choice pTagEdPresets {
+            callback OnTagPreset open
+            private xywh {386 43 147 25} down_box BORDER_BOX labelsize 11 align 5 textsize 12
+            code0 {o->menu(g_mnuTagPresets);}
+          } {}
+        }
+        Fl_Group pTagEdGroup {open
+          xywh {6 78 528 134} box FLAT_BOX color 16 resizable
+          code0 {o->color( fl_rgb_color(226,226,217) );}
+          class Fl_FM_Tag_Group
+        } {}
+      }
+      Fl_Group {} {
+        label Descr open
+        xywh {0 22 540 197} labelfont 1 labelsize 11 labelcolor 8 hide
+        code0 {o->labelsize(FL_NORMAL_SIZE-1);}
+      } {
+        Fl_Text_Editor pTagEdDescr {
+          private tooltip {Mission description with max 1500 characters} xywh {6 30 528 182} box FLAT_BOX labelsize 12 resizable
+        }
+      }
+      Fl_Group {} {
+        label Notes open selected
+        xywh {0 22 540 197} labelfont 1 labelsize 11 labelcolor 8 hide
+        code0 {o->labelsize(FL_NORMAL_SIZE-1);}
+      } {
+        Fl_Text_Editor pTagEdNotes {
+          private xywh {6 30 528 182} box FLAT_BOX labelsize 12 resizable
+        }
+      }
+    }
+    Fl_Group {} {open
+      xywh {5 227 533 25}
+    } {
+      Fl_Button {} {
+        label Cancel
+        callback OnCancelTagEditor
+        xywh {448 227 80 25} shortcut 0xff1b
+      }
+      Fl_Button {} {
+        label OK
+        callback OnOkTagEditor
+        xywh {357 227 80 25}
+      }
+      Fl_Group {} {open
+        xywh {5 227 345 25} resizable
+      } {}
+    }
+  }
+} 
