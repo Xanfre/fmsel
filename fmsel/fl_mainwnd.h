@@ -8,6 +8,7 @@ extern Fl_Double_Window *pMainWnd;
 extern Fl_FM_List *pFMList;
 #include <FL/Fl_Group.H>
 #include <FL/Fl_Button.H>
+extern void OnClose(Fl_Widget*, void*);
 extern void OnPlayOM(Fl_Button*, void*);
 extern void OnPlayFM(Fl_FM_Return_Button*, void*);
 extern void OnStartFM(Fl_Button*, void*);

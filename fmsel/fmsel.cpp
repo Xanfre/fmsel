@@ -315,6 +315,7 @@ static void OnTagPreset(Fl_Choice *o, void *p);
 static void OnTagEdViewInfoFile(Fl_Button *o, void *p);
 static void SetAddTagInputText(const char *s);
 
+static void OnClose(Fl_Widget *o, void *p);
 static void OnResetFilters(Fl_Button *o, void *p);
 static void OnRefreshFilters(Fl_Button *o, void *p);
 static void OnFilterName(Fl_FM_Filter_Input *o, void *p);
@@ -496,6 +497,7 @@ struct FMSelConfig
 	string lastfm;
 	int datefmt;
 
+	BOOL bWindowMax;
 	int windowpos[2];
 	int windowsize[2];
 	int colsizes[COL_NUM_COLS];
@@ -574,6 +576,7 @@ public:
 	FMSelConfig()
 	{
 		datefmt = DATEFMT_CurLocale;
+		bWindowMax = FALSE;
 		windowpos[0] = windowpos[1] = POS_UNDEF;
 		windowsize[0] = windowsize[1] = 0;
 		windowsize_taged[0] = windowsize_taged[1] = 0;
@@ -837,6 +840,7 @@ public:
 		if (returnAfterGame[0] != RET_NEVER) fprintf(f, "DebriefFM=%d\n", returnAfterGame[0]);
 		if (returnAfterGame[1] != RET_NEVER) fprintf(f, "DebriefFMEd=%d\n", returnAfterGame[1]);
 		if (datefmt) fprintf(f, "DateFormat=%d\n", datefmt);
+		if (bWindowMax) fprintf(f, "WindowMaximized=%d\n", 1);
 		if (windowpos[0] != POS_UNDEF && windowpos[1] != POS_UNDEF) fprintf(f, "WindowPos=%d,%d\n", windowpos[0], windowpos[1]);
 		if (windowsize[0] && windowsize[1]) fprintf(f, "WindowSize=%d,%d\n", windowsize[0], windowsize[1]);
 		for (i=0; i<COL_NUM_COLS; i++)
@@ -911,6 +915,8 @@ public:
 			if (datefmt < 0) datefmt = 0;
 			else if (datefmt >= DATEFMT_NUM_FORMATS) datefmt = DATEFMT_NUM_FORMATS-1;
 		}
+		else if ( !_stricmp(valname, "WindowMaximized") )
+			bWindowMax = (atoi(val) == 1);
 		else if ( !_stricmp(valname, "WindowPos") )
 			sscanf(val, "%d,%d", &windowpos[0], &windowpos[1]);
 		else if ( !_stricmp(valname, "WindowSize") )
@@ -11658,14 +11664,21 @@ static void CaptureUIState()
 {
 	// dump window stat stuff to config
 
-	BOOL bModified = g_cfg.windowpos[0] != pMainWnd->x() || g_cfg.windowpos[1] != pMainWnd->y()
+	BOOL bWindowMax = MainWndIsMaximizedOS(pMainWnd);
+	BOOL bModified = g_cfg.bWindowMax != bWindowMax
+		|| g_cfg.windowpos[0] != pMainWnd->x() || g_cfg.windowpos[1] != pMainWnd->y()
 		|| g_cfg.windowsize[0] != pMainWnd->w() || g_cfg.windowsize[1] != pMainWnd->h();
 
-	g_cfg.windowpos[0] = pMainWnd->x();
-	g_cfg.windowpos[1] = pMainWnd->y();
+	g_cfg.bWindowMax = bWindowMax;
 
-	g_cfg.windowsize[0] = pMainWnd->w();
-	g_cfg.windowsize[1] = pMainWnd->h();
+	if (!g_cfg.bWindowMax)
+	{
+		g_cfg.windowpos[0] = pMainWnd->x();
+		g_cfg.windowpos[1] = pMainWnd->y();
+
+		g_cfg.windowsize[0] = pMainWnd->w();
+		g_cfg.windowsize[1] = pMainWnd->h();
+	}
 
 	if ( pFMList->save_col_state(g_cfg.colsizes) )
 		bModified = TRUE;
@@ -11674,6 +11687,21 @@ static void CaptureUIState()
 		g_cfg.OnModified();
 }
 
+static void CloseMainWindow()
+{
+	if (MainWndIsMinimizedOS(pMainWnd))
+		MainWndRestoreOS(pMainWnd);
+
+	CaptureUIState();
+
+	pMainWnd->hide();
+}
+
+
+static void OnClose(Fl_Widget *o, void *p)
+{
+	CloseMainWindow();
+}
 
 static void OnResetFilters(Fl_Button *o, void *p)
 {
@@ -11796,15 +11824,6 @@ static void OnFilterRelTo(Fl_FM_Filter_Input *o, void *p)
 	else
 		g_cfg.SetFilterRelease(g_cfg.filtReleaseFrom, -1);
 }
-
-
-static void CloseMainWindow()
-{
-	CaptureUIState();
-
-	pMainWnd->hide();
-}
-
 
 static void OnPlayOM(Fl_Button *o, void *p)
 {
@@ -12635,6 +12654,9 @@ extern "C" int FMSELAPI SelectFM(sFMSelectorData *data)
 		InitMainWnd();
 
 		pMainWnd->show();
+
+		if (g_cfg.bWindowMax)
+			MainWndMaximizeOS(pMainWnd);
 
 		if ( !ValidateFmPath() )
 		{

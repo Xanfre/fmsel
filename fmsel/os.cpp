@@ -92,6 +92,38 @@ void MainWndTermOS(Fl_Window *pMainWnd)
 #endif
 }
 
+void MainWndRestoreOS(Fl_Window *pMainWnd)
+{
+#ifdef _WIN32
+	SendMessage(fl_xid(pMainWnd), WM_SYSCOMMAND, SC_RESTORE, 0);
+#endif
+}
+
+void MainWndMaximizeOS(Fl_Window *pMainWnd)
+{
+#ifdef _WIN32
+	SendMessage(fl_xid(pMainWnd), WM_SYSCOMMAND, SC_MAXIMIZE, 0);
+#endif
+}
+
+BOOL MainWndIsMinimizedOS(Fl_Window *pMainWnd)
+{
+#ifdef _WIN32
+	return IsIconic( fl_xid(pMainWnd) );
+#else
+	return FALSE;
+#endif
+}
+
+BOOL MainWndIsMaximizedOS(Fl_Window *pMainWnd)
+{
+#ifdef _WIN32
+	return IsZoomed( fl_xid(pMainWnd) );
+#else
+	return FALSE;
+#endif
+}
+
 void FltkTermOS()
 {
 }

@@ -307,6 +307,7 @@ it"));
       pTagFilterGroup->end();
     } // Fl_FM_TagFilter_Group* pTagFilterGroup
     pMainWnd->size_range(630, 380);
+    pMainWnd->callback((Fl_Callback*)OnClose);
     pMainWnd->end();
   } // Fl_Double_Window* pMainWnd
   return pMainWnd;
