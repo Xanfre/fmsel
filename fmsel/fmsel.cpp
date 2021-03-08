@@ -529,6 +529,7 @@ struct FMSelConfig
 	BOOL bReviewDiffBackup;
 
 	BOOL bDecompressOGG;
+	BOOL bGenerateMissFlags;
 
 	unsigned int dwLastProcessID;
 
@@ -596,6 +597,7 @@ public:
 		bDiffBackups = FALSE;
 		bReviewDiffBackup = FALSE;
 		bDecompressOGG = FALSE;
+		bGenerateMissFlags = TRUE;
 		dwLastProcessID = 0;
 		bAutoRefreshFilteredDb = TRUE;
 		bWrapDescrEditor = TRUE;
@@ -874,6 +876,7 @@ public:
 		if (bDiffBackups) fprintf(f, "BackupType=%d\n", !!bDiffBackups);
 		if (bReviewDiffBackup) fprintf(f, "ReviewDiffBackup=%d\n", bReviewDiffBackup);
 		if (bDecompressOGG) fprintf(f, "ConvertOGG=%d\n", bDecompressOGG);
+		if (!bGenerateMissFlags) fprintf(f, "GenerateMissFlags=%d\n", bGenerateMissFlags);
 		if ( !archiveRepo.empty() ) fprintf(f, "ArchiveRoot=%s\n", archiveRepo.c_str());
 		if ( !browserApp.empty() ) fprintf(f, "Browser=%s\n", browserApp.c_str());
 		if (!bSaveNewDbEntriesWithFmIni) fprintf(f, "SaveNewWithIni=%d\n", bSaveNewDbEntriesWithFmIni);
@@ -1016,6 +1019,8 @@ public:
 			bReviewDiffBackup = !!atoi(val);
 		else if ( !_stricmp(valname, "ConvertOGG") )
 			bDecompressOGG = !!atoi(val);
+		else if ( !_stricmp(valname, "GenerateMissFlags") )
+			bGenerateMissFlags = !!atoi(val);
 		else if ( !_stricmp(valname, "ArchiveRoot") )
 		{
 			archiveRepo = Trimmed(val);
@@ -5450,6 +5455,132 @@ static BOOL GetLanguagePacks(const char *archivepath, std::list<string> &langpac
 }
 
 
+static void CheckMissionFlags(const char *installdir)
+{
+	char fpath[MAX_PATH_BUF];
+	if (_snprintf_s(fpath, sizeof(fpath), "%s"DIRSEP"strings", installdir) == -1)
+		return;
+
+	if ( !fl_filename_isdir_ex(fpath, TRUE) )
+	{
+		if ( _mkdir(fpath) )
+			return;
+	}
+	else
+	{
+		dirent **files;
+		int nFiles = fl_filename_list(fpath, &files, NULL, TRUE);
+		for (int i=0; i<nFiles; i++)
+		{
+			dirent *f = files[i];
+
+			int len = strlen(f->d_name);
+			if (f->d_name[0] != '.' && isdirsep(f->d_name[len-1]))
+			{
+				string sdir = fpath;
+				sdir.append(DIRSEP);
+				sdir.append(f->d_name);
+
+				dirent **sfiles;
+				int snFiles = fl_filename_list(sdir.c_str(), &sfiles, NULL, TRUE);
+				for (int j=0; j<snFiles; j++)
+				{
+					f = sfiles[j];
+
+					if ( stristr(f->d_name, "missflag.str") )
+						return;
+				}
+
+				free(sfiles);
+			}
+			else
+				if ( stristr(f->d_name, "missflag.str") )
+					return;
+
+			free(f);
+		}
+
+		free(files);
+	}
+
+	if (_snprintf_s(fpath, sizeof(fpath), "%s"DIRSEP"strings"DIRSEP"missflag.str", installdir) == -1)
+		return;
+
+	vector<int> misnums;
+
+	dirent **files;
+	int nFiles = fl_filename_list(installdir, &files, NULL, TRUE);
+	if (nFiles <= 0)
+		return;
+
+	for (int i=0; i<nFiles; i++)
+	{
+		dirent *f = files[i];
+		string fname = f->d_name;
+
+		size_t pre = fname.find("miss");
+		size_t ext = fname.find(".mis", pre + 4);
+		if (pre != string::npos && ext != string::npos && ext > pre && fname.size() == ext + 4)
+		{
+			size_t j = 0;
+			for (; j < fname.length(); j++)
+				if (isdigit(fname[j]))
+					break;
+			if (j == pre + 4)
+			{
+				fname = fname.substr(j, fname.length() - 1);
+				int misnum = atoi(fname.c_str());
+				if (misnum <= 99)
+					misnums.push_back(misnum);
+			}
+		}
+
+		free(f);
+	}
+
+	free(files);
+
+	if (misnums.size() == 0)
+		return;
+
+	sort(misnums.begin(), misnums.end());
+	int lastmisnum = misnums.back();
+
+	string str = "";
+	char curmisnum[8];
+	for (int i = 1; i <= lastmisnum; i++)
+	{
+		string curmis = "miss_";
+		sprintf(curmisnum, "%d", i);
+		curmis.append(curmisnum);
+		curmis.append(": ");
+		str.append(curmis);
+		if ( count(misnums.begin(), misnums.end(), i) )
+		{
+			str.append("\"no_briefing, no_loadout");
+			if (i == lastmisnum)
+				str.append(", end");
+		}
+		else
+		{
+			str.append("\"skip");
+		}
+		str.append("\"\r\n");
+	}
+
+	FILE *f = fopen(fpath, "wb");
+	if (!f)
+	{
+		fl_alert($("Failed to open file \"%s\" for writing."), fpath);
+		return;
+	}
+
+	fprintf(f, str.c_str());
+
+	fclose(f);
+}
+
+
 static BOOL InstallFM(FMEntry *fm)
 {
 	ASSERT( !fm->IsInstalled() );
@@ -5625,6 +5756,10 @@ static BOOL InstallFM(FMEntry *fm)
 		return FALSE;
 	}
 
+	// generate Thief mission flags
+	if (g_cfg.bGenerateMissFlags && !g_bRunningShock)
+		CheckMissionFlags(tmpdir.c_str());
+
 	// restore savegames/screenshots
 	if ( !stat(bakarchive.c_str(), &st) )
 	{
@@ -5673,8 +5808,6 @@ static BOOL InstallFM(FMEntry *fm)
 		fl_alert($("Failed to move install dir to final location, install aborted."));
 		return FALSE;
 	}
-
-	// 
 
 	RedrawListControl(TRUE);
 
@@ -6408,6 +6541,7 @@ public:
 			CMD_BackupDiff,
 
 			CMD_ConvertOgg,
+			CMD_GenerateMissFlags,
 
 			CMD_ArchivePath,
 
@@ -6480,20 +6614,15 @@ public:
 			MENU_END();
 		MENU_ITEM($("FM Archive Path..."), CMD_ArchivePath);
 		MENU_SUB($("Backup Type")); MENU_MOD_DISABLE(!g_cfg.bRepoOK);
-#ifndef OGG_SUPPORT
-		// this ifdef and the code inside can be entirely deleted if Install Options becomes permanent, see NOTE below
-			MENU_MOD_DIV();
-#endif
 			MENU_RITEM($("Only Saves and Shots"), CMD_BackupSaves, !g_cfg.bDiffBackups);
 			MENU_RITEM($("All Changed Files"), CMD_BackupDiff, g_cfg.bDiffBackups);
 			MENU_END();
-		// NOTE: if other install options get added, move the OGG_SUPPORT so only the OGG sub-item is covered
-		//       but for now it would be ugly with an empty "Install Options" menu
-#ifdef OGG_SUPPORT
 		MENU_SUB($("Install Options")); MENU_MOD_DISABLE(!g_cfg.bRepoOK); MENU_MOD_DIV();
+#ifdef OGG_SUPPORT
 			MENU_TITEM($("Convert OGG to WAV"), CMD_ConvertOgg, g_cfg.bDecompressOGG);
-			MENU_END();
 #endif
+			MENU_TITEM($("Generate Mission Flags"), CMD_GenerateMissFlags, g_cfg.bGenerateMissFlags);
+			MENU_END();
 		MENU_SUB($("Tasks")); MENU_MOD_DIV();
 			MENU_ITEM($("Auto-fill Release Dates"), CMD_AutoScanDates);
 			MENU_MOD_DIV();
@@ -6587,6 +6716,10 @@ public:
 
 		case CMD_ConvertOgg:
 			g_cfg.bDecompressOGG = !g_cfg.bDecompressOGG;
+			g_cfg.OnModified();
+			break;
+		case CMD_GenerateMissFlags:
+			g_cfg.bGenerateMissFlags = !g_cfg.bGenerateMissFlags;
 			g_cfg.OnModified();
 			break;
 
