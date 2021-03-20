@@ -29,7 +29,6 @@ void MainWndInitOS(Fl_Window *pMainWnd);
 void MainWndTermOS(Fl_Window *pMainWnd);
 void MainWndRestoreOS(Fl_Window *pMainWnd);
 void MainWndMaximizeOS(Fl_Window *pMainWnd);
-BOOL MainWndIsMinimizedOS(Fl_Window *pMainWnd);
 BOOL MainWndIsMaximizedOS(Fl_Window *pMainWnd);
 void WndInitOS(Fl_Window *pWnd);
 void FltkTermOS();

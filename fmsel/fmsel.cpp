@@ -11689,7 +11689,7 @@ static void CaptureUIState()
 
 static void CloseMainWindow()
 {
-	if (MainWndIsMinimizedOS(pMainWnd))
+	if (pMainWnd->shown() && !pMainWnd->visible())
 		MainWndRestoreOS(pMainWnd);
 
 	CaptureUIState();
