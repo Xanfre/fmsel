@@ -5463,8 +5463,11 @@ static BOOL GetLanguagePacks(const char *archivepath, std::list<string> &langpac
 
 static void CheckMissionFlags(const char *installdir)
 {
+	const char *strdirname = "strings";
+	const char *missflagfile = "missflag.str";
+
 	char fpath[MAX_PATH_BUF];
-	if (_snprintf_s(fpath, sizeof(fpath), "%s"DIRSEP"strings", installdir) == -1)
+	if (_snprintf_s(fpath, sizeof(fpath), "%s"DIRSEP"%s", installdir, strdirname) == -1)
 		return;
 
 	if ( !fl_filename_isdir_ex(fpath, TRUE) )
@@ -5472,44 +5475,61 @@ static void CheckMissionFlags(const char *installdir)
 		if ( _mkdir(fpath) )
 			return;
 	}
-	else
+
+	BOOL bMissFlagsExist = FALSE;
+	dirent **sfiles;
+	int nSfiles = fl_filename_list(fpath, &sfiles, NULL, TRUE);
+	for (int i=0; i<nSfiles; i++)
 	{
-		dirent **files;
-		int nFiles = fl_filename_list(fpath, &files, NULL, TRUE);
-		for (int i=0; i<nFiles; i++)
+		dirent *f = sfiles[i];
+
+		int len = strlen(f->d_name);
+		if (f->d_name[0] != '.' && isdirsep(f->d_name[len-1]))
 		{
-			dirent *f = files[i];
+			if (strlen(fpath)+strlen(f->d_name)+1 >= MAX_PATH)
+				break;
 
-			int len = strlen(f->d_name);
-			if (f->d_name[0] != '.' && isdirsep(f->d_name[len-1]))
+			strcat(fpath, DIRSEP);
+			strcat(fpath, f->d_name);
+
+			dirent **ssfiles;
+			int nSsfiles = fl_filename_list(fpath, &ssfiles, NULL, TRUE);
+			for (int j=0; j<nSsfiles; j++)
 			{
-				string sdir = fpath;
-				sdir.append(DIRSEP);
-				sdir.append(f->d_name);
+				f = ssfiles[j];
 
-				dirent **sfiles;
-				int snFiles = fl_filename_list(sdir.c_str(), &sfiles, NULL, TRUE);
-				for (int j=0; j<snFiles; j++)
+				if ( stristr(f->d_name, missflagfile) )
 				{
-					f = sfiles[j];
-
-					if ( stristr(f->d_name, "missflag.str") )
-						return;
+					bMissFlagsExist = TRUE;
+					break;
 				}
-
-				free(sfiles);
 			}
-			else
-				if ( stristr(f->d_name, "missflag.str") )
-					return;
 
-			free(f);
+			for (int j=0; j<nSsfiles; j++)
+				free(ssfiles[j]);
+			free(ssfiles);
+		}
+		else
+		{
+			if ( stristr(f->d_name, missflagfile) )
+			{
+				bMissFlagsExist = TRUE;
+				break;
+			}
 		}
 
-		free(files);
+		if (bMissFlagsExist)
+			break;
 	}
 
-	if (_snprintf_s(fpath, sizeof(fpath), "%s"DIRSEP"strings"DIRSEP"missflag.str", installdir) == -1)
+	for (int i=0; i<nSfiles; i++)
+		free(sfiles[i]);
+	free(sfiles);
+
+	if (bMissFlagsExist)
+		return;
+
+	if (_snprintf_s(fpath, sizeof(fpath), "%s"DIRSEP"%s"DIRSEP"%s", installdir, strdirname, missflagfile) == -1)
 		return;
 
 	vector<int> misnums;
@@ -5525,46 +5545,39 @@ static void CheckMissionFlags(const char *installdir)
 		string fname = f->d_name;
 
 		size_t pre = fname.find("miss");
-		size_t ext = fname.find(".mis", pre + 4);
-		if (pre != string::npos && ext != string::npos && ext > pre && fname.size() == ext + 4)
+		size_t ext = fname.find(".mis", 4);
+		if (pre != string::npos && ext != string::npos && pre == 0 && fname.size() == ext + 4)
 		{
-			size_t j = 0;
-			for (; j < fname.length(); j++)
-				if (isdigit(fname[j]))
-					break;
-			if (j == pre + 4)
+			if (isdigit(fname[4]) && ((isdigit(fname[5]) && ext == 6) || ext == 5))
 			{
-				fname = fname.substr(j, fname.length() - 1);
-				int misnum = atoi(fname.c_str());
-				if (misnum <= 99)
+				int misnum = atoi(fname.substr(4, ext - 4).c_str());
+				if (misnum > 0 && misnum <= 99)
 					misnums.push_back(misnum);
 			}
 		}
-
-		free(f);
 	}
 
+	for (int i=0; i<nFiles; i++)
+		free(files[i]);
 	free(files);
 
 	if (misnums.size() == 0)
 		return;
 
 	sort(misnums.begin(), misnums.end());
-	int lastmisnum = misnums.back();
 
 	string str = "";
-	char curmisnum[8];
-	for (int i = 1; i <= lastmisnum; i++)
+	for (int i = 1; i <= misnums.back(); i++)
 	{
-		string curmis = "miss_";
-		sprintf(curmisnum, "%d", i);
-		curmis.append(curmisnum);
-		curmis.append(": ");
-		str.append(curmis);
+		str.append("miss_");
+		char misnum[4];
+		_itoa(i, misnum, 10);
+		str.append(misnum);
+		str.append(": ");
 		if ( count(misnums.begin(), misnums.end(), i) )
 		{
 			str.append("\"no_briefing, no_loadout");
-			if (i == lastmisnum)
+			if (i == misnums.back())
 				str.append(", end");
 		}
 		else
