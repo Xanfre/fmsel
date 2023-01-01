@@ -224,6 +224,9 @@ static string FromUTF(const string &s)
 #define FromUTF(_x) _x
 #endif
 
+#define SCALE(_x) _x * scale / 4
+#define SCALECFG(_x) _x * g_cfg.uiscale / 4
+
 
 enum
 {
@@ -524,6 +527,7 @@ struct FMSelConfig
 
 	int uitheme;
 	BOOL bLargeFont;
+	int uiscale;
 
 	// do differential backups (ie. backup all files that have been added or modified instead of only savegames and shots)
 	BOOL bDiffBackups;
@@ -597,6 +601,7 @@ public:
 		returnAfterGame[1] = RET_NEVER;
 		uitheme = 0;
 		bLargeFont = FALSE;
+		uiscale = 4;
 		bDiffBackups = FALSE;
 		bReviewDiffBackup = FALSE;
 		bDecompressOGG = FALSE;
@@ -877,6 +882,7 @@ public:
 			}
 		if (uitheme) fprintf(f, "Theme=%d\n", uitheme);
 		if (bLargeFont) fprintf(f, "FontSize=%d\n", bLargeFont);
+		if (uiscale > 4) fprintf(f, "Scale=%d\n", uiscale-4);
 		if (bDiffBackups) fprintf(f, "BackupType=%d\n", !!bDiffBackups);
 		if (bReviewDiffBackup) fprintf(f, "ReviewDiffBackup=%d\n", bReviewDiffBackup);
 		if (bDecompressOGG) fprintf(f, "ConvertOGG=%d\n", bDecompressOGG);
@@ -1019,6 +1025,8 @@ public:
 			uitheme = atoi(val);
 		else if ( !_stricmp(valname, "FontSize") )
 			bLargeFont = !!atoi(val);
+		else if ( !_stricmp(valname, "Scale") )
+			uiscale = atoi(val)+4;
 		else if ( !_stricmp(valname, "BackupType") )
 			bDiffBackups = !!atoi(val);
 		else if ( !_stricmp(valname, "ReviewDiffBackup") )
@@ -2588,7 +2596,7 @@ static void RefreshFilteredDb(BOOL bUpdateListControl, BOOL bReSortOnly)
 		case SORT_ReleaseDate: std::sort(g_dbFiltered.begin(), g_dbFiltered.end(), sort_released); break;
 		case SORT_DirName: std::sort(g_dbFiltered.begin(), g_dbFiltered.end(), sort_dirname); break;
 		case SORT_Archive: std::sort(g_dbFiltered.begin(), g_dbFiltered.end(), sort_archive); break;
-		
+
 		case -SORT_Name: std::sort(g_dbFiltered.begin(), g_dbFiltered.end(), sort_rev_name); break;
 		case -SORT_Rating: std::sort(g_dbFiltered.begin(), g_dbFiltered.end(), sort_rev_rating); break;
 		case -SORT_Priority: std::sort(g_dbFiltered.begin(), g_dbFiltered.end(), sort_rev_prio); break;
@@ -6016,7 +6024,7 @@ static BOOL UninstallFM(FMEntry *fm)
 			// each time a savegame is loaded, we don't want that part of any backup)
 			DelTree(string(installdir) + DIRSEP"current");
 
-		// enumerate all files in the install dir with mtime and size into 
+		// enumerate all files in the install dir with mtime and size into
 		if ( !EnumFileDiffInfo(installdir, strlen(installdir)) )
 		{
 			fl_alert($("Failed to scan files to make backup, uninstall aborted."));
@@ -6547,6 +6555,9 @@ public:
 			CMD_FontSizeNormal,
 			CMD_FontSizeLarge,
 
+			CMD_Scale1,
+			CMD_ScaleLast = CMD_Scale1+4,
+
 			CMD_ToggleWrapDescrEdit,
 			CMD_ToggleWrapNotesEdit,
 
@@ -6616,6 +6627,13 @@ public:
 		MENU_SUB($("UI Font Size"));
 			MENU_RITEM($("Normal"), CMD_FontSizeNormal, g_cfg.bLargeFont == 0);
 			MENU_RITEM($("Large"), CMD_FontSizeLarge, g_cfg.bLargeFont != 0);
+			MENU_END();
+		MENU_SUB($("UI Scale"));
+			MENU_RITEM($("1x"), CMD_Scale1, g_cfg.uiscale == 4);
+			MENU_RITEM($("1.25x"), CMD_Scale1+1, g_cfg.uiscale == 5);
+			MENU_RITEM($("1.5x"), CMD_Scale1+2, g_cfg.uiscale == 6);
+			MENU_RITEM($("1.75x"), CMD_Scale1+3, g_cfg.uiscale == 7);
+			MENU_RITEM($("2x"), CMD_Scale1+4, g_cfg.uiscale == 8);
 			MENU_END();
 		MENU_SUB($("Misc")); MENU_MOD_DIV();
 			MENU_TITEM($("Word Wrap Descr Editor"), CMD_ToggleWrapDescrEdit, g_cfg.bWrapDescrEditor);
@@ -6782,6 +6800,15 @@ public:
 				g_cfg.tagrows = cmd_id-CMD_TagRows0;
 				g_cfg.OnModified();
 				RefreshListControlRowSize();
+			}
+			else if (cmd_id >= CMD_Scale1 && cmd_id <= CMD_ScaleLast)
+			{
+				if ( fl_choice($("Restart is required to change UI scale. Change size and exit?"), fl_cancel, fl_ok, NULL) )
+				{
+					g_cfg.uiscale = cmd_id-CMD_Scale1+4;
+					g_cfg.OnModified();
+					OnExit(NULL, NULL);
+				}
 			}
 		}
 	}
@@ -7618,25 +7645,32 @@ public:
 
 		cols(num_cols);
 		int totw = TABLE_SCROLLBAR_SIZE;
-		col_minwidth(0, s_columns[0].minwidth);
+		col_minwidth(0, SCALECFG(s_columns[0].minwidth));
 		for (i=1; i<COL_NUM_COLS; i++)
 		{
 			if (s_columns[i].visible)
 			{
-				totw += s_columns[i].width;
-				col_width(s_columns[i].ui_col_index, s_columns[i].width);
-				col_minwidth(s_columns[i].ui_col_index, s_columns[i].minwidth);
+				int width = SCALECFG(s_columns[i].width);
+				int minwidth = SCALECFG(s_columns[i].minwidth);
+				if (width < 0) width = -1;
+				if (minwidth < 0) minwidth = -1;
+				totw += SCALECFG(s_columns[i].width);
+				col_width(s_columns[i].ui_col_index, width);
+				col_minwidth(s_columns[i].ui_col_index, minwidth);
 			}
 		}
-		col_width(0, std::max(s_columns[0].width, w()-totw));
+		col_width(0, std::max(SCALECFG(s_columns[0].width), w()-totw));
 
 		col_header(1);
 		col_resize(1);
 
 		// init col sizes from config
 		for (i=0; i<COL_NUM_COLS; i++)
-			if (s_columns[i].visible && g_cfg.colsizes[i] != -1 && s_columns[i].minwidth != -1)
+		{
+			int minwidth = SCALECFG(s_columns[i].minwidth);
+			if (s_columns[i].visible && g_cfg.colsizes[i] != -1 && minwidth != -1 && g_cfg.colsizes[i] >= minwidth)
 				col_width(s_columns[i].ui_col_index, g_cfg.colsizes[i]);
+		}
 	}
 
 	// post-create initializtion
@@ -8587,12 +8621,12 @@ public:
 	{
 		m_label = bNoFilter ? $("Add Tag") : $("Add Tag Filter");
 
-		// underline width (excludes " »")
+		// underline width (excludes " Â»")
 		fl_font(labelfont(), labelsize());
 		const int underlineW = (int)fl_width( m_label.c_str() ) - 1;
 
-		// append " »" to label
-		m_label += " »";
+		// append " Â»" to label
+		m_label += " Â»";
 		label( m_label.c_str() );
 		autosize_to_label();
 
@@ -9022,12 +9056,12 @@ protected:
 	{
 		BORDER_WIDTH = 3,	// border margin (on one side)
 		BUTTON_SPACING = 4,	// spacing between tag buttons
-		BUTTON_HEIGHT = 17,
 		ROW_SPACING = 3,
 	};
 
 	// this widget can also be used to edit tags for an FMEntry
 	BOOL m_bTagEdit;
+	int m_buttonheight;
 
 protected:
 	static void addtag_cb(Fl_Widget *o, void *p) { ((Fl_FM_TagFilter_Group*)p)->OnAddTagFilter(); }
@@ -9061,6 +9095,7 @@ public:
 		: Fl_Group(X,Y,W,H,l)
 	{
 		m_bTagEdit = FALSE;
+		m_buttonheight = SCALECFG(17);
 
 		end();
 		resizable(NULL);
@@ -9072,7 +9107,7 @@ public:
 		o->callback(addtag_cb, this);
 		add(o);
 
-		FM_Ellipsis_Label *ellipsis = new FM_Ellipsis_Label(x()+BORDER_WIDTH, y()+BORDER_WIDTH, BUTTON_HEIGHT);
+		FM_Ellipsis_Label *ellipsis = new FM_Ellipsis_Label(x()+BORDER_WIDTH, y()+BORDER_WIDTH, m_buttonheight);
 		ellipsis->hide();
 		add(ellipsis);
 	}
@@ -9090,8 +9125,8 @@ public:
 		int W = w() - 40;
 		int H = (m_bTagEdit ? std::max(pMainWnd->h(), ((Fl_Widget*)pTagEdWnd)->h()) : pMainWnd->h()) - Y - 20;
 
-		const int MAX_W = g_cfg.bLargeFont ? 770 : 630;
-		const int MAX_H = g_cfg.bLargeFont ? 980 : 800;
+		const int MAX_W = SCALECFG((g_cfg.bLargeFont ? 770 : 630));
+		const int MAX_H = SCALECFG((g_cfg.bLargeFont ? 980 : 800));
 
 		if (W >= MAX_W)
 			W = MAX_W;
@@ -9139,7 +9174,7 @@ public:
 		// create all tag buttons (their placement will be updated after)
 		for (int j=0; j<FOP_NUM_OPS; j++)
 			for (int i=0; i<(int)g_cfg.tagFilterList[j].size(); i++)
-				insert(*new Fl_FM_TagFilter_Button(x(), y(), BUTTON_HEIGHT, g_cfg.tagFilterList[j][i], j, maxw), children());
+				insert(*new Fl_FM_TagFilter_Button(x(), y(), m_buttonheight, g_cfg.tagFilterList[j][i], j, maxw), children());
 
 		RearrangeButtons();
 	}
@@ -9159,7 +9194,7 @@ public:
 		const int GROUP_LIST_SPACE = 8;
 		const int MIN_LIST_HEIGHT = 160;
 		const int max_group_bottom = m_bTagEdit ? listbottom : ((listbottom - MIN_LIST_HEIGHT) - GROUP_LIST_SPACE);
-		const int maxrows = (((max_group_bottom - y()) - (BORDER_WIDTH * 2 + BUTTON_HEIGHT)) / (BUTTON_HEIGHT + ROW_SPACING)) + 1;
+		const int maxrows = (((max_group_bottom - y()) - (BORDER_WIDTH * 2 + m_buttonheight)) / (m_buttonheight + ROW_SPACING)) + 1;
 
 		// hide ellipsis
 		Fl_Widget *ellipsis = child(1);
@@ -9198,7 +9233,7 @@ public:
 					break;
 				}
 				rows++;
-				Y += BUTTON_HEIGHT + ROW_SPACING;
+				Y += m_buttonheight + ROW_SPACING;
 				X = BORDER_WIDTH;
 			}
 
@@ -9209,7 +9244,7 @@ public:
 
 		if (!m_bTagEdit)
 		{
-			int newh = BORDER_WIDTH * 2 + BUTTON_HEIGHT + (rows - 1) * (BUTTON_HEIGHT + ROW_SPACING);
+			int newh = BORDER_WIDTH * 2 + m_buttonheight + (rows - 1) * (m_buttonheight + ROW_SPACING);
 			if (newh != h())
 			{
 				Fl_Group::resize(x(), y(), w(), newh);
@@ -9545,7 +9580,7 @@ public:
 
 		// create all tag buttons (their placement will be updated after)
 		for (int i=0; i<(int)m_taglist.size(); i++)
-			insert(*new Fl_FM_TagFilter_Button(x(), y(), BUTTON_HEIGHT, m_taglist[i].c_str(), 0, maxw), children());
+			insert(*new Fl_FM_TagFilter_Button(x(), y(), m_buttonheight, m_taglist[i].c_str(), 0, maxw), children());
 
 		RearrangeButtons();
 	}
@@ -10189,8 +10224,8 @@ static void ViewSummary(FMEntry *fm)
 	int W = pMainWnd->w() - 40;
 	int H = pMainWnd->h() - 40;
 
-	const int MAX_W = g_cfg.bLargeFont ? 770 : 630;
-	const int MAX_H = g_cfg.bLargeFont ? 980 : 800;
+	const int MAX_W = SCALECFG((g_cfg.bLargeFont ? 770 : 630));
+	const int MAX_H = SCALECFG((g_cfg.bLargeFont ? 980 : 800));
 
 	if (W >= MAX_W)
 		W = MAX_W;
@@ -10341,7 +10376,7 @@ static void ViewAbout()
 
 	html.append(msg);
 
-	GenericHtmlTextPopup($("About"), html.c_str(), g_cfg.bLargeFont ? 610 : 500, g_cfg.bLargeFont ? 610 : 500);
+	GenericHtmlTextPopup($("About"), html.c_str(), SCALECFG((g_cfg.bLargeFont ? 610 : 500)), SCALECFG((g_cfg.bLargeFont ? 610 : 500)));
 }
 
 
@@ -11614,7 +11649,7 @@ static void DoTagEditor(FMEntry *fm, int page)
 	g_bTagEdFakeFM = !*fm->name;
 	g_bTagEdFakeFMForcedHasChanges = FALSE;
 
-	Fl_FM_TagEd_Window *pDlg = MakeTagEditor();
+	Fl_FM_TagEd_Window *pDlg = MakeTagEditor(g_cfg.uiscale);
 	ASSERT(pDlg != NULL);
 	if (!pDlg)
 		return;
@@ -12132,6 +12167,9 @@ static void InitMainWnd()
 			);
 	}
 
+	// set proper list header size
+	pFMList->col_header_height(SCALECFG(pFMList->col_header_height()));
+
 	// do OS specific init of main window
 	MainWndInitOS(pMainWnd);
 
@@ -12455,7 +12493,7 @@ static void InitFLTK()
 	else
 		Fl::scheme("base");
 
-	FL_NORMAL_SIZE = g_cfg.bLargeFont ? 14 : 12;
+	FL_NORMAL_SIZE = SCALECFG((g_cfg.bLargeFont ? 14 : 12));
 	fl_message_font(FL_HELVETICA, FL_NORMAL_SIZE);
 	fl_message_icon()->box(FL_FLAT_BOX);
 	fl_message_icon()->color(FL_GRAY0+20);
@@ -12660,7 +12698,7 @@ extern "C" int FMSELAPI SelectFM(sFMSelectorData *data)
 
 	InitFLTK();
 
-    MakeWindow();
+    MakeWindow(g_cfg.uiscale);
 
 	if (pMainWnd)
 	{

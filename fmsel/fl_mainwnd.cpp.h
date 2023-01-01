@@ -38,15 +38,15 @@ static Fl_FM_Filter_Input *pFilterRelDateTo=(Fl_FM_Filter_Input *)0;
 
 static Fl_FM_TagFilter_Group *pTagFilterGroup=(Fl_FM_TagFilter_Group *)0;
 
-static Fl_Double_Window* MakeWindow() {
-  { pMainWnd = new Fl_Double_Window(630, 380, $("Dark FM Selector"));
-    { Fl_FM_List* o = pFMList = new Fl_FM_List(5, 80, 620, 255);
+static Fl_Double_Window* MakeWindow(int scale) {
+  { pMainWnd = new Fl_Double_Window(SCALE(630), SCALE(380), $("Dark FM Selector"));
+    { Fl_FM_List* o = pFMList = new Fl_FM_List(SCALE(5), SCALE(80), SCALE(620), SCALE(255));
       pFMList->box(FL_NO_BOX);
       pFMList->color((Fl_Color)FL_BACKGROUND2_COLOR);
       pFMList->selection_color((Fl_Color)230);
       pFMList->labeltype(FL_NORMAL_LABEL);
       pFMList->labelfont(0);
-      pFMList->labelsize(10);
+      pFMList->labelsize(SCALE(10));
       pFMList->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
       pFMList->textfont(1);
       pFMList->align(FL_ALIGN_BOTTOM);
@@ -55,8 +55,8 @@ static Fl_Double_Window* MakeWindow() {
       pFMList->selection_color( fl_rgb_color(170,238,255) );
       o->labelsize(FL_NORMAL_SIZE-2);
     } // Fl_FM_List* pFMList
-    { pGroupBottom = new Fl_Group(5, 348, 620, 32);
-      { Fl_Button* o = pBtnSkipFM = new Fl_Button(5, 348, 120, 25, $("Skip FM"));
+    { pGroupBottom = new Fl_Group(SCALE(5), SCALE(348), SCALE(620), SCALE(32));
+      { Fl_Button* o = pBtnSkipFM = new Fl_Button(SCALE(5), SCALE(348), SCALE(120), SCALE(25), $("Skip FM"));
         pBtnSkipFM->tooltip($("Launch without FM"));
         pBtnSkipFM->shortcut(0xff1b);
         pBtnSkipFM->callback((Fl_Callback*)OnPlayOM);
@@ -64,14 +64,14 @@ static Fl_Double_Window* MakeWindow() {
         o->image(imgPlay);
         o->labeltype(IMAGETEXT_LABEL);
       } // Fl_Button* pBtnSkipFM
-      { Fl_FM_Return_Button* o = pBtnPlayFM = new Fl_FM_Return_Button(136, 348, 120, 25, $("Play FM"));
+      { Fl_FM_Return_Button* o = pBtnPlayFM = new Fl_FM_Return_Button(SCALE(136), SCALE(348), SCALE(120), SCALE(25), $("Play FM"));
         pBtnPlayFM->tooltip($("Launch selected FM"));
         pBtnPlayFM->box(FL_UP_BOX);
         pBtnPlayFM->color((Fl_Color)FL_BACKGROUND_COLOR);
         pBtnPlayFM->selection_color((Fl_Color)FL_BACKGROUND_COLOR);
         pBtnPlayFM->labeltype(FL_NORMAL_LABEL);
         pBtnPlayFM->labelfont(0);
-        pBtnPlayFM->labelsize(12);
+        pBtnPlayFM->labelsize(SCALE(12));
         pBtnPlayFM->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
         pBtnPlayFM->callback((Fl_Callback*)OnPlayFM);
         pBtnPlayFM->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
@@ -81,7 +81,7 @@ static Fl_Double_Window* MakeWindow() {
         o->labeltype(IMAGETEXT_LABEL);
         o->labelsize(FL_NORMAL_SIZE);
       } // Fl_FM_Return_Button* pBtnPlayFM
-      { Fl_Button* o = pBtnStartFM = new Fl_Button(263, 348, 120, 25, $("Start FM"));
+      { Fl_Button* o = pBtnStartFM = new Fl_Button(SCALE(263), SCALE(348), SCALE(120), SCALE(25), $("Start FM"));
         pBtnStartFM->tooltip($("Launch selected FM and change status to \'Playing\'"));
         pBtnStartFM->callback((Fl_Callback*)OnStartFM);
         pBtnStartFM->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
@@ -89,22 +89,22 @@ static Fl_Double_Window* MakeWindow() {
         o->deimage(pImgStartFMGray);
         o->labeltype(IMAGETEXT_LABEL);
       } // Fl_Button* pBtnStartFM
-      { Fl_Button* o = new Fl_Button(525, 348, 100, 25, $("Exit"));
+      { Fl_Button* o = new Fl_Button(SCALE(525), SCALE(348), SCALE(100), SCALE(25), $("Exit"));
         o->callback((Fl_Callback*)OnExit);
       } // Fl_Button* o
-      { Fl_Group* o = new Fl_Group(395, 348, 14, 25);
+      { Fl_Group* o = new Fl_Group(SCALE(395), SCALE(348), SCALE(14), SCALE(25));
         o->hide();
         o->end();
         Fl_Group::current()->resizable(o);
       } // Fl_Group* o
-      { Fl_FM_Config_Button* o = new Fl_FM_Config_Button(411, 348, 44, 25);
+      { Fl_FM_Config_Button* o = new Fl_FM_Config_Button(SCALE(411), SCALE(348), SCALE(44), SCALE(25));
         o->tooltip($("Options/Tasks menu"));
         o->box(FL_UP_BOX);
         o->color((Fl_Color)FL_BACKGROUND_COLOR);
         o->selection_color((Fl_Color)FL_SELECTION_COLOR);
         o->labeltype(FL_NORMAL_LABEL);
         o->labelfont(0);
-        o->labelsize(12);
+        o->labelsize(SCALE(12));
         o->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
         o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
         o->when(FL_WHEN_RELEASE_ALWAYS);
@@ -113,44 +113,44 @@ static Fl_Double_Window* MakeWindow() {
       } // Fl_FM_Config_Button* o
       pGroupBottom->end();
     } // Fl_Group* pGroupBottom
-    { pGroupTop = new Fl_Group(5, 5, 620, 40);
-      { Fl_FM_Filter_Input* o = pFilterName = new Fl_FM_Filter_Input(5, 20, 180, 24, $("Name"));
+    { pGroupTop = new Fl_Group(SCALE(5), SCALE(5), SCALE(620), SCALE(40));
+      { Fl_FM_Filter_Input* o = pFilterName = new Fl_FM_Filter_Input(SCALE(5), SCALE(20), SCALE(180), SCALE(24), $("Name"));
         pFilterName->tooltip($("Only show FMs whose names contain this sub-string"));
         pFilterName->box(FL_DOWN_BOX);
         pFilterName->color((Fl_Color)FL_BACKGROUND2_COLOR);
         pFilterName->selection_color((Fl_Color)FL_SELECTION_COLOR);
         pFilterName->labeltype(FL_NORMAL_LABEL);
         pFilterName->labelfont(0);
-        pFilterName->labelsize(11);
+        pFilterName->labelsize(SCALE(11));
         pFilterName->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
-        pFilterName->textsize(12);
+        pFilterName->textsize(SCALE(12));
         pFilterName->callback((Fl_Callback*)OnFilterName);
         pFilterName->align(FL_ALIGN_TOP_LEFT);
         pFilterName->when(FL_WHEN_RELEASE);
         o->when(FL_WHEN_ENTER_KEY | FL_WHEN_CHANGED | FL_WHEN_RELEASE_ALWAYS);
         o->textsize(FL_NORMAL_SIZE);
       } // Fl_FM_Filter_Input* pFilterName
-      { Fl_Choice* o = pFilterRating = new Fl_Choice(195, 20, 55, 24, $("Min Rating"));
+      { Fl_Choice* o = pFilterRating = new Fl_Choice(SCALE(195), SCALE(20), SCALE(55), SCALE(24), $("Min Rating"));
         pFilterRating->tooltip($("Show  FMs with a minimum rating of"));
         pFilterRating->down_box(FL_BORDER_BOX);
-        pFilterRating->labelsize(11);
+        pFilterRating->labelsize(SCALE(11));
         pFilterRating->callback((Fl_Callback*)OnFilterRating);
         pFilterRating->align(FL_ALIGN_TOP_LEFT);
         o->menu(g_mnuFiltRating);
       } // Fl_Choice* pFilterRating
-      { Fl_Choice* o = pFilterPrio = new Fl_Choice(260, 20, 55, 24, $("Min Pri"));
+      { Fl_Choice* o = pFilterPrio = new Fl_Choice(SCALE(260), SCALE(20), SCALE(55), SCALE(24), $("Min Pri"));
         pFilterPrio->tooltip($("Show  FMs with a minimum priority of"));
         pFilterPrio->down_box(FL_BORDER_BOX);
-        pFilterPrio->labelsize(11);
+        pFilterPrio->labelsize(SCALE(11));
         pFilterPrio->callback((Fl_Callback*)OnFilterPriority);
         pFilterPrio->align(FL_ALIGN_TOP_LEFT);
         o->menu(g_mnuFiltPrio);
       } // Fl_Choice* pFilterPrio
-      { Fl_Box* o = new Fl_Box(322, 6, 45, 15, $("Status"));
-        o->labelsize(11);
+      { Fl_Box* o = new Fl_Box(SCALE(322), SCALE(6), SCALE(45), SCALE(15), $("Status"));
+        o->labelsize(SCALE(11));
         o->align(FL_ALIGN_TOP_LEFT|FL_ALIGN_INSIDE);
       } // Fl_Box* o
-      { Fl_FM_Filter_Button* o = pFilterNotPlayed = new Fl_FM_Filter_Button(325, 20, 30, 24);
+      { Fl_FM_Filter_Button* o = pFilterNotPlayed = new Fl_FM_Filter_Button(SCALE(325), SCALE(20), SCALE(30), SCALE(24));
         pFilterNotPlayed->tooltip($("Show FMs that haven\'t been completed or currently in progress"));
         pFilterNotPlayed->type(1);
         pFilterNotPlayed->box(FL_UP_BOX);
@@ -158,7 +158,7 @@ static Fl_Double_Window* MakeWindow() {
         pFilterNotPlayed->selection_color((Fl_Color)FL_BACKGROUND_COLOR);
         pFilterNotPlayed->labeltype(FL_NORMAL_LABEL);
         pFilterNotPlayed->labelfont(0);
-        pFilterNotPlayed->labelsize(14);
+        pFilterNotPlayed->labelsize(SCALE(14));
         pFilterNotPlayed->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
         pFilterNotPlayed->callback((Fl_Callback*)OnFilterToggle, (void*)(1));
         pFilterNotPlayed->align(FL_ALIGN_CENTER);
@@ -167,7 +167,7 @@ static Fl_Double_Window* MakeWindow() {
         o->deimage(imgNotPlayed);
         o->down_color(TOGBTN_DN_CLR);
       } // Fl_FM_Filter_Button* pFilterNotPlayed
-      { Fl_FM_Filter_Button* o = pFilterCompleted = new Fl_FM_Filter_Button(354, 20, 30, 24);
+      { Fl_FM_Filter_Button* o = pFilterCompleted = new Fl_FM_Filter_Button(SCALE(354), SCALE(20), SCALE(30), SCALE(24));
         pFilterCompleted->tooltip($("Show completed FMs"));
         pFilterCompleted->type(1);
         pFilterCompleted->box(FL_UP_BOX);
@@ -175,7 +175,7 @@ static Fl_Double_Window* MakeWindow() {
         pFilterCompleted->selection_color((Fl_Color)FL_BACKGROUND_COLOR);
         pFilterCompleted->labeltype(FL_NORMAL_LABEL);
         pFilterCompleted->labelfont(0);
-        pFilterCompleted->labelsize(14);
+        pFilterCompleted->labelsize(SCALE(14));
         pFilterCompleted->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
         pFilterCompleted->callback((Fl_Callback*)OnFilterToggle, (void*)(2));
         pFilterCompleted->align(FL_ALIGN_CENTER);
@@ -184,7 +184,7 @@ static Fl_Double_Window* MakeWindow() {
         o->deimage(pImgCheckGray);
         o->down_color(TOGBTN_DN_CLR);
       } // Fl_FM_Filter_Button* pFilterCompleted
-      { Fl_FM_Filter_Button* o = pFilterInProgress = new Fl_FM_Filter_Button(383, 20, 30, 24);
+      { Fl_FM_Filter_Button* o = pFilterInProgress = new Fl_FM_Filter_Button(SCALE(383), SCALE(20), SCALE(30), SCALE(24));
         pFilterInProgress->tooltip($("Show FMs with a playthrough in progress"));
         pFilterInProgress->type(1);
         pFilterInProgress->box(FL_UP_BOX);
@@ -192,7 +192,7 @@ static Fl_Double_Window* MakeWindow() {
         pFilterInProgress->selection_color((Fl_Color)FL_BACKGROUND_COLOR);
         pFilterInProgress->labeltype(FL_NORMAL_LABEL);
         pFilterInProgress->labelfont(0);
-        pFilterInProgress->labelsize(14);
+        pFilterInProgress->labelsize(SCALE(14));
         pFilterInProgress->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
         pFilterInProgress->callback((Fl_Callback*)OnFilterToggle, (void*)(3));
         pFilterInProgress->align(FL_ALIGN_CENTER);
@@ -201,11 +201,11 @@ static Fl_Double_Window* MakeWindow() {
         o->deimage(pImgProgressGray);
         o->down_color(TOGBTN_DN_CLR);
       } // Fl_FM_Filter_Button* pFilterInProgress
-      { Fl_Box* o = new Fl_Box(420, 6, 35, 15, $("Avail"));
-        o->labelsize(11);
+      { Fl_Box* o = new Fl_Box(SCALE(420), SCALE(6), SCALE(35), SCALE(15), $("Avail"));
+        o->labelsize(SCALE(11));
         o->align(FL_ALIGN_TOP_LEFT|FL_ALIGN_INSIDE);
       } // Fl_Box* o
-      { Fl_FM_Filter_Button* o = pFilterArchived = new Fl_FM_Filter_Button(423, 20, 30, 24);
+      { Fl_FM_Filter_Button* o = pFilterArchived = new Fl_FM_Filter_Button(SCALE(423), SCALE(20), SCALE(30), SCALE(24));
         pFilterArchived->tooltip($("Show archived FMs that aren\'t installed"));
         pFilterArchived->type(1);
         pFilterArchived->box(FL_UP_BOX);
@@ -213,7 +213,7 @@ static Fl_Double_Window* MakeWindow() {
         pFilterArchived->selection_color((Fl_Color)FL_BACKGROUND_COLOR);
         pFilterArchived->labeltype(FL_NORMAL_LABEL);
         pFilterArchived->labelfont(0);
-        pFilterArchived->labelsize(14);
+        pFilterArchived->labelsize(SCALE(14));
         pFilterArchived->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
         pFilterArchived->callback((Fl_Callback*)OnFilterToggle, (void*)(5));
         pFilterArchived->align(FL_ALIGN_CENTER);
@@ -222,7 +222,7 @@ static Fl_Double_Window* MakeWindow() {
         o->deimage(pImgArchivedGray);
         o->down_color(TOGBTN_DN_CLR);
       } // Fl_FM_Filter_Button* pFilterArchived
-      { Fl_FM_Filter_Button* o = pFilterNotAvail = new Fl_FM_Filter_Button(452, 20, 30, 24);
+      { Fl_FM_Filter_Button* o = pFilterNotAvail = new Fl_FM_Filter_Button(SCALE(452), SCALE(20), SCALE(30), SCALE(24));
         pFilterNotAvail->tooltip($("Show FMs that aren\'t available"));
         pFilterNotAvail->type(1);
         pFilterNotAvail->box(FL_UP_BOX);
@@ -230,7 +230,7 @@ static Fl_Double_Window* MakeWindow() {
         pFilterNotAvail->selection_color((Fl_Color)FL_BACKGROUND_COLOR);
         pFilterNotAvail->labeltype(FL_NORMAL_LABEL);
         pFilterNotAvail->labelfont(0);
-        pFilterNotAvail->labelsize(14);
+        pFilterNotAvail->labelsize(SCALE(14));
         pFilterNotAvail->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
         pFilterNotAvail->callback((Fl_Callback*)OnFilterToggle, (void*)(4));
         pFilterNotAvail->align(FL_ALIGN_CENTER);
@@ -239,7 +239,7 @@ static Fl_Double_Window* MakeWindow() {
         o->deimage(pImgNotAvailGray);
         o->down_color(TOGBTN_DN_CLR);
       } // Fl_FM_Filter_Button* pFilterNotAvail
-      { Fl_FM_Filter_Input* o = pFilterRelDateFrom = new Fl_FM_Filter_Input(491, 20, 25, 24, $("Rel. Year"));
+      { Fl_FM_Filter_Input* o = pFilterRelDateFrom = new Fl_FM_Filter_Input(SCALE(491), SCALE(20), SCALE(25), SCALE(24), $("Rel. Year"));
         pFilterRelDateFrom->tooltip($("Show FMs released from year (YY), leave empty for no lower limit"));
         pFilterRelDateFrom->type(2);
         pFilterRelDateFrom->box(FL_DOWN_BOX);
@@ -247,9 +247,9 @@ static Fl_Double_Window* MakeWindow() {
         pFilterRelDateFrom->selection_color((Fl_Color)FL_SELECTION_COLOR);
         pFilterRelDateFrom->labeltype(FL_NORMAL_LABEL);
         pFilterRelDateFrom->labelfont(0);
-        pFilterRelDateFrom->labelsize(11);
+        pFilterRelDateFrom->labelsize(SCALE(11));
         pFilterRelDateFrom->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
-        pFilterRelDateFrom->textsize(12);
+        pFilterRelDateFrom->textsize(SCALE(12));
         pFilterRelDateFrom->callback((Fl_Callback*)OnFilterRelFrom);
         pFilterRelDateFrom->align(FL_ALIGN_TOP_LEFT);
         pFilterRelDateFrom->when(FL_WHEN_ENTER_KEY);
@@ -257,7 +257,7 @@ static Fl_Double_Window* MakeWindow() {
         o->when(FL_WHEN_ENTER_KEY | FL_WHEN_RELEASE);
         o->textsize(FL_NORMAL_SIZE);
       } // Fl_FM_Filter_Input* pFilterRelDateFrom
-      { Fl_FM_Filter_Input* o = pFilterRelDateTo = new Fl_FM_Filter_Input(527, 20, 25, 24, $("-"));
+      { Fl_FM_Filter_Input* o = pFilterRelDateTo = new Fl_FM_Filter_Input(SCALE(527), SCALE(20), SCALE(25), SCALE(24), $("-"));
         pFilterRelDateTo->tooltip($("Show FMs released up to and including year (YY), leave empty for no upper lim\
 it"));
         pFilterRelDateTo->type(2);
@@ -266,9 +266,9 @@ it"));
         pFilterRelDateTo->selection_color((Fl_Color)FL_SELECTION_COLOR);
         pFilterRelDateTo->labeltype(FL_NORMAL_LABEL);
         pFilterRelDateTo->labelfont(0);
-        pFilterRelDateTo->labelsize(11);
+        pFilterRelDateTo->labelsize(SCALE(11));
         pFilterRelDateTo->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
-        pFilterRelDateTo->textsize(12);
+        pFilterRelDateTo->textsize(SCALE(12));
         pFilterRelDateTo->callback((Fl_Callback*)OnFilterRelTo);
         pFilterRelDateTo->align(FL_ALIGN_LEFT);
         pFilterRelDateTo->when(FL_WHEN_ENTER_KEY);
@@ -276,37 +276,37 @@ it"));
         o->when(FL_WHEN_ENTER_KEY | FL_WHEN_RELEASE);
         o->textsize(FL_NORMAL_SIZE);
       } // Fl_FM_Filter_Input* pFilterRelDateTo
-      { Fl_Group* o = new Fl_Group(557, 5, 4, 40);
+      { Fl_Group* o = new Fl_Group(SCALE(557), SCALE(5), SCALE(4), SCALE(40));
         o->hide();
         o->end();
         Fl_Group::current()->resizable(o);
       } // Fl_Group* o
-      { Fl_Button* o = new Fl_Button(562, 20, 30, 24);
+      { Fl_Button* o = new Fl_Button(SCALE(562), SCALE(20), SCALE(30), SCALE(24));
         o->tooltip($("Refresh list to apply filter and sorting to status changes etc."));
         o->callback((Fl_Callback*)OnRefreshFilters);
         o->image(imgRefresh);
       } // Fl_Button* o
-      { Fl_Button* o = new Fl_Button(595, 20, 30, 24);
+      { Fl_Button* o = new Fl_Button(SCALE(595), SCALE(20), SCALE(30), SCALE(24));
         o->tooltip($("Reset to default filter settings"));
         o->callback((Fl_Callback*)OnResetFilters);
         o->image(imgResetFilters);
       } // Fl_Button* o
       pGroupTop->end();
     } // Fl_Group* pGroupTop
-    { Fl_FM_TagFilter_Group* o = pTagFilterGroup = new Fl_FM_TagFilter_Group(5, 50, 620, 21);
+    { Fl_FM_TagFilter_Group* o = pTagFilterGroup = new Fl_FM_TagFilter_Group(SCALE(5), SCALE(50), SCALE(620), SCALE(21));
       pTagFilterGroup->box(FL_FLAT_BOX);
       pTagFilterGroup->color((Fl_Color)16);
       pTagFilterGroup->selection_color((Fl_Color)FL_BACKGROUND_COLOR);
       pTagFilterGroup->labeltype(FL_NORMAL_LABEL);
       pTagFilterGroup->labelfont(0);
-      pTagFilterGroup->labelsize(14);
+      pTagFilterGroup->labelsize(SCALE(14));
       pTagFilterGroup->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
       pTagFilterGroup->align(FL_ALIGN_TOP);
       pTagFilterGroup->when(FL_WHEN_RELEASE);
       o->color( fl_rgb_color(226,226,217) );
       pTagFilterGroup->end();
     } // Fl_FM_TagFilter_Group* pTagFilterGroup
-    pMainWnd->size_range(630, 380);
+    pMainWnd->size_range(SCALE(630), SCALE(380));
     pMainWnd->callback((Fl_Callback*)OnClose);
     pMainWnd->end();
   } // Fl_Double_Window* pMainWnd
