@@ -142,13 +142,13 @@ Fl_Table::Fl_Table(int X, int Y, int W, int H, const char *l) : Fl_Group(X,Y,W,H
 
   box(FL_THIN_DOWN_FRAME);
 
-  vscrollbar = new Fl_Scrollbar(x()+w()-TABLE_SCROLLBAR_SIZE, y(),
-				TABLE_SCROLLBAR_SIZE, h()-TABLE_SCROLLBAR_SIZE);
+  vscrollbar = new Fl_Scrollbar(x()+w()-Fl::scrollbar_size(), y(),
+				Fl::scrollbar_size(), h()-Fl::scrollbar_size());
   vscrollbar->type(FL_VERTICAL);
   vscrollbar->callback(scroll_cb, (void*)this);
 
-  hscrollbar = new Fl_Scrollbar(x(), y()+h()-TABLE_SCROLLBAR_SIZE,
-				w(), TABLE_SCROLLBAR_SIZE);
+  hscrollbar = new Fl_Scrollbar(x(), y()+h()-Fl::scrollbar_size(),
+				w(), Fl::scrollbar_size());
   hscrollbar->type(FL_HORIZONTAL);
   hscrollbar->callback(scroll_cb, (void*)this);
 
@@ -507,14 +507,15 @@ void Fl_Table::recalc_dimensions() {
     // First pass: can hide via window size?
     int hidev = (table_h <= tih) && !_always_show_vscroll;
     int hideh = (table_w <= tiw); 
+    int scrollsize = Fl::scrollbar_size();
     // Second pass: Check for interference
-    if ( !hideh & hidev ) { hidev = (( table_h - tih + TABLE_SCROLLBAR_SIZE ) <= 0 ); } 
-    if ( !hidev & hideh ) { hideh = (( table_w - tiw + TABLE_SCROLLBAR_SIZE ) <= 0 ); } 
+    if ( !hideh & hidev ) { hidev = (( table_h - tih + scrollsize ) <= 0 ); } 
+    if ( !hidev & hideh ) { hideh = (( table_w - tiw + scrollsize ) <= 0 ); } 
     // Determine scrollbar visibility, trim ti[xywh]/to[xywh]
     if ( hidev ) { vscrollbar->hide(); } 
-    else { vscrollbar->show(); tiw -= TABLE_SCROLLBAR_SIZE; tow -= TABLE_SCROLLBAR_SIZE; }
+    else { vscrollbar->show(); tiw -= scrollsize; tow -= scrollsize; }
     if ( hideh ) { hscrollbar->hide(); } 
-    else { hscrollbar->show(); tih -= TABLE_SCROLLBAR_SIZE; toh -= TABLE_SCROLLBAR_SIZE; }
+    else { hscrollbar->show(); tih -= scrollsize; toh -= scrollsize; }
   } 
   // Resize the child table
   table->resize(tox, toy, tow, toh);
@@ -581,20 +582,21 @@ void Fl_Table::table_resized() {
     // Vertical scrollbar
     float vscrolltab = ( table_h == 0 || tih > table_h ) ? 1 : (float)tih / table_h;
     float hscrolltab = ( table_w == 0 || tiw > table_w ) ? 1 : (float)tiw / table_w;
-	vscrollbar->bounds(0, (table_h-tih)>0?(table_h-tih):0);
+    int scrollsize = Fl::scrollbar_size();
+    vscrollbar->bounds(0, (table_h-tih)>0?(table_h-tih):0);
     vscrollbar->precision(10);
     vscrollbar->slider_size(vscrolltab);
-    vscrollbar->resize(wix+wiw-TABLE_SCROLLBAR_SIZE, wiy,
-		       TABLE_SCROLLBAR_SIZE, 
-		       wih - ((hscrollbar->visible())?TABLE_SCROLLBAR_SIZE:0));
+    vscrollbar->resize(wix+wiw-scrollsize, wiy,
+		       scrollsize, 
+		       wih - ((hscrollbar->visible())?scrollsize:0));
     vscrollbar->Fl_Valuator::value(vscrollbar->clamp(vscrollbar->value()));	
     // Horizontal scrollbar
     hscrollbar->bounds(0, table_w-tiw);
     hscrollbar->precision(10);
     hscrollbar->slider_size(hscrolltab);
-    hscrollbar->resize(wix, wiy+wih-TABLE_SCROLLBAR_SIZE,
-		       wiw - ((vscrollbar->visible())?TABLE_SCROLLBAR_SIZE:0), 
-		       TABLE_SCROLLBAR_SIZE);
+    hscrollbar->resize(wix, wiy+wih-scrollsize,
+		       wiw - ((vscrollbar->visible())?scrollsize:0), 
+		       scrollsize);
     hscrollbar->Fl_Valuator::value(hscrollbar->clamp(hscrollbar->value()));
   }
 
@@ -1236,7 +1238,7 @@ void Fl_Table::draw() {
 	  //
 	  fl_rectf(wix, tiy + table_h, row_header_width(), 
 		   (wiy+wih) - (tiy+table_h) - 
-		   ( hscrollbar->visible() ? TABLE_SCROLLBAR_SIZE : 0),
+		   ( hscrollbar->visible() ? Fl::scrollbar_size() : 0),
 		   color());
 	}
       }

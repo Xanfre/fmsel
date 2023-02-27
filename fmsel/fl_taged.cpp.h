@@ -191,7 +191,7 @@ static Fl_FM_TagEd_Window* MakeTagEditor(int scale) {
           pTagEdGroup->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
           pTagEdGroup->align(FL_ALIGN_TOP);
           pTagEdGroup->when(FL_WHEN_RELEASE);
-          o->color( fl_rgb_color(226,226,217) );
+          o->color((Fl_Color)(USER_CLR+28));
           pTagEdGroup->end();
           Fl_Group::current()->resizable(pTagEdGroup);
         } // Fl_FM_Tag_Group* pTagEdGroup

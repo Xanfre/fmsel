@@ -52,7 +52,7 @@ static Fl_Double_Window* MakeWindow(int scale) {
       pFMList->align(FL_ALIGN_BOTTOM);
       pFMList->when(FL_WHEN_RELEASE);
       Fl_Group::current()->resizable(pFMList);
-      pFMList->selection_color( fl_rgb_color(170,238,255) );
+      pFMList->selection_color((Fl_Color)(USER_CLR+29));
       o->labelsize(FL_NORMAL_SIZE-2);
     } // Fl_FM_List* pFMList
     { pGroupBottom = new Fl_Group(SCALE(5), SCALE(348), SCALE(620), SCALE(32));
@@ -303,7 +303,7 @@ it"));
       pTagFilterGroup->labelcolor((Fl_Color)FL_FOREGROUND_COLOR);
       pTagFilterGroup->align(FL_ALIGN_TOP);
       pTagFilterGroup->when(FL_WHEN_RELEASE);
-      o->color( fl_rgb_color(226,226,217) );
+      o->color((Fl_Color)(USER_CLR+28));
       pTagFilterGroup->end();
     } // Fl_FM_TagFilter_Group* pTagFilterGroup
     pMainWnd->size_range(SCALE(630), SCALE(380));
