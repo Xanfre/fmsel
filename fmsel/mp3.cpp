@@ -22,7 +22,7 @@
 #pragma pack()
 #endif
 
-#include <FL/fl_ask.h>
+#include <FL/fl_ask.H>
 
 
 #ifdef OGG_SUPPORT

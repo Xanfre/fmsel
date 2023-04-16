@@ -86,7 +86,7 @@ void MainWndTermOS(Fl_Window *pMainWnd)
 	if ( pMainWnd->icon() )
 	{
 		HICON hIcon = (HICON)pMainWnd->icon();
-		pMainWnd->icon(NULL);
+		pMainWnd->icon((const void *)NULL);
 		DestroyIcon(hIcon);
 	}
 #endif
@@ -224,7 +224,11 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 	char cwd[MAX_PATH];
 	_getcwd(cwd, sizeof(cwd));
 
+#ifdef CUSTOM_FLTK
 	fl_filename_absolute_ex(result, len, initial_, TRUE);
+#else
+	fl_filename_absolute(result, len, initial_);
+#endif
 
 	char *s = result;
 	for (; *s; s++)
@@ -481,7 +485,7 @@ void* GetDynamicLibProcOS(void *handle, const char *procname)
 		return NULL;
 
 #ifdef _WIN32
-	return GetProcAddress((HMODULE)handle, procname);
+	return (void*)GetProcAddress((HMODULE)handle, procname);
 #else
 	return dlsym(handle, procname);
 #endif

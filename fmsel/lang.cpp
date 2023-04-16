@@ -18,13 +18,17 @@
 
 #ifdef LOCALIZATION_SUPPORT
 
-#include <FL/fl_utf8.H>
+#include <FL/fl_utf8.h>
 
 #include <string>
 #include <unordered_map>
 #include <algorithm>
 using std::string;
+#ifdef _MSC_VER
 using std::tr1::unordered_map;
+#else
+using std::unordered_map;
+#endif
 
 
 char* skip_ws(char *s);

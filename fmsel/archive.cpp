@@ -14,7 +14,7 @@
 #include "os.h"
 #include "lang.h"
 #include <lib7zip.h>
-#include <FL/Fl_Ask.H>
+#include <FL/fl_ask.H>
 #include <FL/filename.H>
 #include <stdarg.h>
 #include <errno.h>

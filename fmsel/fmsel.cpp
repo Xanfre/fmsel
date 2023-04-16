@@ -35,7 +35,7 @@
 #include <FL/Fl_Menu.H>
 #include <FL/Fl_Choice.H>
 #include <FL/Fl_Input.H>
-#include <FL/Fl_Ask.H>
+#include <FL/fl_ask.H>
 #include <FL/Fl_Return_Button.H>
 #include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_Round_Button.H>
@@ -64,9 +64,16 @@
 #include <algorithm>
 using std::vector;
 using std::string;
+#ifdef _MSC_VER
 using std::tr1::unordered_map;
 using std::tr1::hash;
 using std::tr1::unordered_multimap;
+#else
+#include <list>
+using std::unordered_map;
+using std::hash;
+using std::unordered_multimap;
+#endif
 
 
 // don't localize these, they are used as directory names
@@ -136,6 +143,16 @@ static inline int isdirsep(char c) {return c=='/' || c=='\\';}
 #endif
 
 #define isspace_(_ch) isspace((unsigned char)(_ch))
+
+#ifdef CUSTOM_FLTK
+#define NO_COMP_UTFCONV NULL,TRUE
+#define ALIGN_NO_DRAW (Fl_Align)(FL_ALIGN_TOP_LEFT|FL_ALIGN_CLIP|FL_ALIGN_WRAP),0
+#else
+#define NO_COMP_UTFCONV NULL
+#define ALIGN_NO_DRAW 0
+#define fl_filename_absolute_ex(a, b, c, d) fl_filename_absolute(a, b, c)
+#define fl_filename_isdir_ex(a, b) fl_filename_isdir(a)
+#endif
 
 static int tolower_utf(const char *str, int len, char *buf)
 {
@@ -321,6 +338,8 @@ static void OnAddCustomTag(Fl_FM_Tag_Input *o, void *p);
 static void OnTagPreset(Fl_Choice *o, void *p);
 static void OnTagEdViewInfoFile(Fl_Button *o, void *p);
 static void SetAddTagInputText(const char *s);
+static void OnCancelTagEditor(Fl_Button*, void*);
+static void OnOkTagEditor(Fl_Button*, void*);
 
 static void OnClose(Fl_Widget *o, void *p);
 static void OnResetFilters(Fl_Button *o, void *p);
@@ -603,7 +622,11 @@ public:
 		filtReleaseFrom = -1;
 		filtReleaseTo = -1;
 		filtReleaseMinTime = 0;
+#ifdef _MSC_VER
 		filtReleaseMaxTime = 0x7fffffffffffffffLL;
+#else
+		filtReleaseMaxTime = 0x7fffffffL;
+#endif
 		returnAfterGame[0] = RET_NEVER;
 		returnAfterGame[1] = RET_NEVER;
 		uitheme = 0;
@@ -822,7 +845,11 @@ public:
 	void OnFilterReleaseChanged()
 	{
 		filtReleaseMinTime = 0;
+#ifdef _MSC_VER
 		filtReleaseMaxTime = 0x7fffffffffffffffLL;
+#else
+		filtReleaseMaxTime = 0x7fffffffL;
+#endif
 
 		if (filtReleaseFrom != -1)
 		{
@@ -1640,9 +1667,9 @@ static BOOL SaveInstallInfo(FMEntry *fm, const char *path = NULL)
 	char fname[MAX_PATH_BUF];
 	int r;
 	if (path)
-		r = _snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"fmsel.inf", path);
+		r = _snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "fmsel.inf", path);
 	else
-		r = _snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"%s"DIRSEP"fmsel.inf", g_pFMSelData->sRootPath, fm->name);
+		r = _snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "fmsel.inf", g_pFMSelData->sRootPath, fm->name);
 
 	if (r == -1)
 		return FALSE;
@@ -1672,7 +1699,7 @@ static BOOL LoadInstallInfo(FMEntry *fm)
 	// if the db was deleted or lost
 
 	char fname[MAX_PATH_BUF];
-	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"%s"DIRSEP"fmsel.inf", g_pFMSelData->sRootPath, fm->name) == -1)
+	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "fmsel.inf", g_pFMSelData->sRootPath, fm->name) == -1)
 		return FALSE;
 
 	FILE *f = fopen(fname, "rb");
@@ -1759,11 +1786,11 @@ static BOOL LoadRemoveFileInfo(FMEntry *fm)
 	// to list files that should be removed from install
 
 	char installdir[MAX_PATH_BUF];
-	if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name) == -1)
+	if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 		return FALSE;
 
 	char fname[MAX_PATH_BUF];
-	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"fmsel.inf", installdir) == -1)
+	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "fmsel.inf", installdir) == -1)
 		return FALSE;
 
 	FILE *f = fopen(fname, "rb");
@@ -1823,7 +1850,7 @@ static BOOL LoadRemoveFileInfo(FMEntry *fm)
 				&& !strchr(val, ':')
 				&& !strstr(val, DIRSEP"..") && strncmp(val, "..", 2))
 			{
-				if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"%s", installdir, val) == -1)
+				if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", installdir, val) == -1)
 				{
 					TRACE("remove list failed to remove file (path too long): %s", fname);
 				}
@@ -1948,7 +1975,7 @@ static void ScanArchiveRepo(const char *subdirname = NULL, int depth = 0)
 	}
 
 	dirent **files;
-	int nFiles = fl_filename_list(subdirname ? sdir.c_str() : g_cfg.archiveRepo.c_str(), &files, NULL, TRUE);
+	int nFiles = fl_filename_list(subdirname ? sdir.c_str() : g_cfg.archiveRepo.c_str(), &files, NO_COMP_UTFCONV);
 	if (nFiles <= 0)
 		return;
 
@@ -2051,7 +2078,7 @@ static void ScanFmDir()
 	// scan for installed FMs
 
 	dirent **files;
-	int nFiles = fl_filename_list(g_pFMSelData->sRootPath, &files, NULL, TRUE);
+	int nFiles = fl_filename_list(g_pFMSelData->sRootPath, &files, NO_COMP_UTFCONV);
 	if (nFiles > 0)
 	{
 		for (int i=0; i<nFiles; i++)
@@ -2098,11 +2125,11 @@ static BOOL SaveDb()
 		return TRUE;
 
 	char fname[MAX_PATH_BUF];
-	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"fmsel.ini", g_pFMSelData->sRootPath) == -1)
+	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "fmsel.ini", g_pFMSelData->sRootPath) == -1)
 		return FALSE;
 
 	char bakfname[MAX_PATH_BUF];
-	_snprintf_s(bakfname, sizeof(bakfname), _TRUNCATE, "%s"DIRSEP"fmsel.bak", g_pFMSelData->sRootPath);
+	_snprintf_s(bakfname, sizeof(bakfname), _TRUNCATE, "%s" DIRSEP "fmsel.bak", g_pFMSelData->sRootPath);
 
 	remove_forced(bakfname);
 	rename(fname, bakfname);
@@ -2161,7 +2188,7 @@ static BOOL LoadDb()
 	g_db.reserve(2048);
 
 	char fname[MAX_PATH_BUF];
-	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"fmsel.ini", g_pFMSelData->sRootPath) == -1)
+	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "fmsel.ini", g_pFMSelData->sRootPath) == -1)
 		return FALSE;
 
 	FILE *f = fopen(fname, "r");
@@ -3407,7 +3434,7 @@ static BOOL FmFileExists(const FMEntry *fm, const char *fname)
 	}
 
 	char pathname[MAX_PATH_BUF];
-	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s"DIRSEP"%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
+	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
 		return FALSE;
 
 	struct stat st = {0};
@@ -3430,7 +3457,7 @@ static BOOL FmReadFileToBuffer(const FMEntry *fm, const char *fname, char *&data
 
 	char fpath[MAX_PATH_BUF];
 
-	if (_snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s"DIRSEP"%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
+	if (_snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
 		return FALSE;
 
 	FILE *f = fopen(fpath, "rb");
@@ -3500,14 +3527,14 @@ static BOOL FmOpenFileWithAssociatedApp(FMEntry *fm, const char *filename)
 		// extract file from archive to temp dir
 
 		string s;
-		if ( !FmGetPhysicalFileFromArchive(fm, filename, s, FALSE) )
+		if ( !FmGetPhysicalFileFromArchive(fm, filename, s, FALSE)
 			return FALSE;
 
 		return OpenFileWithAssociatedApp(filename, g_sTempDirAbs.c_str());
 	}
 	else
 	{
-		if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name) == -1)
+		if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 			return FALSE;
 
 		return OpenFileWithAssociatedApp(filename, pathname);
@@ -3520,7 +3547,7 @@ static BOOL ExportFmIni(FMEntry *fm, BOOL bSaveTitle = FALSE)
 	char fname[MAX_PATH_BUF];
 	if (*fm->name)
 	{
-		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"%s"DIRSEP"fm.ini", g_pFMSelData->sRootPath, fm->name) == -1)
+		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "fm.ini", g_pFMSelData->sRootPath, fm->name) == -1)
 		{
 			fl_alert($("Failed to open file \"%s\" for writing, path name too long."), fname);
 			return FALSE;
@@ -4010,7 +4037,7 @@ static BOOL SetReleaseDateFromFile(FMEntry *fm, const char *fname, time_t tmMin,
 {
 	char pathname[MAX_PATH_BUF];
 
-	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s"DIRSEP"%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
+	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
 		return FALSE;
 
 	struct stat st = {0};
@@ -4124,11 +4151,11 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 	if ( fm->IsInstalled() )
 	{
 		// couldn't get date from fm.ini, now try to get date from the modified timestamp of some appropiate files
-		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name) == -1)
+		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 			return FALSE;
 
 		dirent **files;
-		int nFiles = fl_filename_list(fname, &files, NULL, TRUE);
+		int nFiles = fl_filename_list(fname, &files, NO_COMP_UTFCONV);
 		if (nFiles <= 0)
 			return FALSE;
 
@@ -4452,11 +4479,11 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 		return FALSE;
 	}
 
-	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name) == -1)
+	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 		return FALSE;
 
 	dirent **files;
-	int nFiles = fl_filename_list(fname, &files, NULL, TRUE);
+	int nFiles = fl_filename_list(fname, &files, NO_COMP_UTFCONV);
 	if (nFiles <= 0)
 		return FALSE;
 
@@ -4544,7 +4571,7 @@ static BOOL DelTreeInternal(const char *path)
 		return FALSE;
 
 	dirent **files;
-	int nFiles = fl_filename_list(path, &files, NULL, TRUE);
+	int nFiles = fl_filename_list(path, &files, NO_COMP_UTFCONV);
 	if (nFiles <= 0)
 	{
 		if ( !_rmdir(path) )
@@ -4645,7 +4672,7 @@ static BOOL FmDelTree(FMEntry *fm)
 		return FALSE;
 
 	char installdir[MAX_PATH_BUF];
-	if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name) == -1)
+	if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 	{
 		ASSERT(FALSE);
 		return FALSE;
@@ -4693,7 +4720,7 @@ static BOOL BackupOptFileToArchive(FMEntry *fm, const char *fname, BOOL bSkipChe
 	// if file doesn't exist then return TRUE
 
 	char pathname[MAX_PATH_BUF];
-	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s"DIRSEP"%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
+	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
 		return FALSE;
 
 	if (!bSkipCheck)
@@ -4725,7 +4752,7 @@ static BOOL BackupOptDirToArchive(FMEntry *fm, const char *dirname)
 	s.append(dirname);
 
 	dirent **files;
-	int nFiles = fl_filename_list(s.c_str(), &files, NULL, TRUE);
+	int nFiles = fl_filename_list(s.c_str(), &files, NO_COMP_UTFCONV);
 	if (nFiles <= 0)
 		return TRUE;
 
@@ -4816,10 +4843,10 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 	// shock saves "save_*" and also "saves_*" for potential future thief multiplayer saves
 	{
 	char fname[MAX_PATH_BUF];
-	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name) == -1)
+	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 		goto abort;
 	dirent **files;
-	int nFiles = fl_filename_list(fname, &files, NULL, TRUE);
+	int nFiles = fl_filename_list(fname, &files, NO_COMP_UTFCONV);
 	if (nFiles > 0)
 	{
 		BOOL bFailed = FALSE;
@@ -5076,7 +5103,7 @@ static bool RemoveEnumeratedArchiveFile(const char *fname, void *p)
 	const char *installdir = (const char*)p;
 	char s[MAX_PATH_BUF];
 
-	if (_snprintf_s(s, sizeof(s), _TRUNCATE, "%s"DIRSEP"%s", installdir, fname) == -1)
+	if (_snprintf_s(s, sizeof(s), _TRUNCATE, "%s" DIRSEP "%s", installdir, fname) == -1)
 	{
 		ASSERT(FALSE);
 		return true;
@@ -5532,7 +5559,7 @@ static void CheckMissionFlags(const char *installdir)
 	const char *missflagfile = "missflag.str";
 
 	char fpath[MAX_PATH_BUF];
-	if (_snprintf_s(fpath, sizeof(fpath), "%s"DIRSEP"%s", installdir, strdirname) == -1)
+	if (_snprintf_s(fpath, sizeof(fpath), "%s" DIRSEP "%s", installdir, strdirname) == -1)
 		return;
 
 	if ( !fl_filename_isdir_ex(fpath, TRUE) )
@@ -5543,7 +5570,7 @@ static void CheckMissionFlags(const char *installdir)
 
 	BOOL bMissFlagsExist = FALSE;
 	dirent **sfiles;
-	int nSfiles = fl_filename_list(fpath, &sfiles, NULL, TRUE);
+	int nSfiles = fl_filename_list(fpath, &sfiles, NO_COMP_UTFCONV);
 	for (int i=0; i<nSfiles; i++)
 	{
 		dirent *f = sfiles[i];
@@ -5558,7 +5585,7 @@ static void CheckMissionFlags(const char *installdir)
 			strcat(fpath, f->d_name);
 
 			dirent **ssfiles;
-			int nSsfiles = fl_filename_list(fpath, &ssfiles, NULL, TRUE);
+			int nSsfiles = fl_filename_list(fpath, &ssfiles, NO_COMP_UTFCONV);
 			for (int j=0; j<nSsfiles; j++)
 			{
 				f = ssfiles[j];
@@ -5594,13 +5621,13 @@ static void CheckMissionFlags(const char *installdir)
 	if (bMissFlagsExist)
 		return;
 
-	if (_snprintf_s(fpath, sizeof(fpath), "%s"DIRSEP"%s"DIRSEP"%s", installdir, strdirname, missflagfile) == -1)
+	if (_snprintf_s(fpath, sizeof(fpath), "%s" DIRSEP "%s" DIRSEP "%s", installdir, strdirname, missflagfile) == -1)
 		return;
 
 	vector<int> misnums;
 
 	dirent **files;
-	int nFiles = fl_filename_list(installdir, &files, NULL, TRUE);
+	int nFiles = fl_filename_list(installdir, &files, NO_COMP_UTFCONV);
 	if (nFiles <= 0)
 		return;
 
@@ -5694,7 +5721,7 @@ static BOOL InstallFM(FMEntry *fm)
 	}
 
 	char installdir[MAX_PATH_BUF];
-	if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name) == -1)
+	if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 	{
 		fl_alert($("Cannot install, path too long \"%s\"."), installdir);
 		return FALSE;
@@ -5906,7 +5933,7 @@ static BOOL EnumFileDiffInfo(const char *path, int relname_start)
 		return FALSE;
 
 	dirent **files;
-	int nFiles = fl_filename_list(path, &files, NULL, TRUE);
+	int nFiles = fl_filename_list(path, &files, NO_COMP_UTFCONV);
 	if (nFiles <= 0)
 		return TRUE;
 
@@ -6068,7 +6095,7 @@ static BOOL UninstallFM(FMEntry *fm)
 		// do backup first, only if that succeeded we do a "deltree"
 
 		char installdir[MAX_PATH_BUF];
-		if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s"DIRSEP"%s", g_pFMSelData->sRootPath, fm->name) == -1)
+		if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 		{
 			fl_alert($("Path too long, uninstall aborted."));
 			return FALSE;
@@ -6325,7 +6352,7 @@ static void ScanDirForLanguage(const char *subdirname, LangEnumContext &ctxt, in
 	string sdir;
 
 	dirent **files;
-	int nFiles = fl_filename_list(subdirname, &files, NULL, TRUE);
+	int nFiles = fl_filename_list(subdirname, &files, NO_COMP_UTFCONV);
 	if (nFiles <= 0)
 		return;
 
@@ -6413,7 +6440,7 @@ static BOOL GetLanguages(FMEntry *fm, std::list<string> &langlist, BOOL bEarlyOu
 	{
 		for (int i=0; i<NUM_LANGUAGES; i++)
 		{
-			sprintf(langdirs[i], DIRSEP"%s"DIRSEP, g_languages[i]);
+			sprintf(langdirs[i], DIRSEP "%s" DIRSEP, g_languages[i]);
 			ctxt.langsToFind.push_back(langdirs[i]);
 		}
 
@@ -6430,7 +6457,7 @@ static BOOL GetLanguages(FMEntry *fm, std::list<string> &langlist, BOOL bEarlyOu
 		}
 
 		char installdir[MAX_PATH_BUF];
-		if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s"DIRSEP"%s"DIRSEP, g_pFMSelData->sRootPath, fm->name) == -1)
+		if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP, g_pFMSelData->sRootPath, fm->name) == -1)
 			return FALSE;
 
 		ctxt.lpszEarlyOutOn = bEarlyOutOnEnglish ? langdirs[0] : NULL;
@@ -7782,7 +7809,7 @@ public:
 				else
 				{
 					int lw = WW, lh = 0;
-					fl_measure(fm->tagsUI.c_str(), lw, lh, (Fl_Align)(FL_ALIGN_TOP_LEFT|FL_ALIGN_CLIP|FL_ALIGN_WRAP), 0);
+					fl_measure(fm->tagsUI.c_str(), lw, lh, ALIGN_NO_DRAW);
 
 					const int bottomhalf2 = lh + 2;
 					row_height(r, std::min(maxH, tophalf + bottomhalf2));
@@ -7819,7 +7846,7 @@ public:
 				fl_font(FL_HELVETICA, m_tagfontsize);
 
 				int lw = WW, lh = 0;
-				fl_measure(fm->tagsUI.c_str(), lw, lh, (Fl_Align)(FL_ALIGN_TOP_LEFT|FL_ALIGN_CLIP|FL_ALIGN_WRAP), 0);
+				fl_measure(fm->tagsUI.c_str(), lw, lh, ALIGN_NO_DRAW);
 
 				const int bottomhalf2 = lh + 2;
 				row_height(r, std::min(maxH, tophalf + bottomhalf2));
@@ -10062,7 +10089,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 		}
 		else
 		{
-			const char *img = "<center><img src=\"/img/%s"DIRSEP"%s"DIRSEP"%s\" /></center><br><br>";
+			const char *img = "<center><img src=\"/img/%s" DIRSEP "%s" DIRSEP "%s\" /></center><br><br>";
 
 			_snprintf_s(buff, sizeof(buff), _TRUNCATE, img, g_pFMSelData->sRootPath, fm->name, "fmthumb.jpg");
 
@@ -10112,7 +10139,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 	// completed
 	if (fm->nCompleteCount > 0)
 	{
-		const char *compl = "<font color=\"%s\"><u><b>%s:</b></u></font> %d %s%s";
+		const char *c = "<font color=\"%s\"><u><b>%s:</b></u></font> %d %s%s";
 
 		char buff2[256];
 		buff2[0] = 0;
@@ -10126,7 +10153,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, " (<u>%s</u>: %s)", $("On"), TextToHtml(date).c_str());
 		}
 
-		_snprintf_s(buff, sizeof(buff), _TRUNCATE, compl, $("Completed"), DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR,
+		_snprintf_s(buff, sizeof(buff), _TRUNCATE, c, $("Completed"), DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR,
 			fm->nCompleteCount, fm->nCompleteCount>1 ? $("times") : $("time"), buff2);
 		html.append(buff);
 
@@ -10437,7 +10464,7 @@ static void ViewAbout()
 
 	html.append("<h1><font color=\"");
 	html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
-	html.append("\">FMSel "FMSEL_VERSION"</font></h1><br>");
+	html.append("\">FMSel " FMSEL_VERSION "</font></h1><br>");
 
 	// about text doesn't (only supports localization of vital information)
 	char msg[3072];
@@ -10448,7 +10475,7 @@ static void ViewAbout()
 
 		"<center><font color=\"%s\"><hr></font></center>"
 
-		"%s <b>"MP3LIB"</b> (x86 / 32-bit) %s "FMSELLIB".<br>" // $("To enable support for MP3 to WAV conversion during FM install, you must download"), $("and put it in the same directory as")
+		"%s <b>" MP3LIB "</b> (x86 / 32-bit) %s " FMSELLIB ".<br>" // $("To enable support for MP3 to WAV conversion during FM install, you must download"), $("and put it in the same directory as")
 		"<br>"
 		"%s<br>" // $("Links for binary downloads of the LAME MP3 library can be found on:")
 		"<a href=\"http://lame.sourceforge.net/links.php#Binaries\"><b>http://lame.sourceforge.net/links.php#Binaries</b></a><br>"
@@ -10466,7 +10493,7 @@ static void ViewAbout()
 		"<b>fltk v%d.%d.%d</b><br>"
 		"<a href=\"http://fltk.org\"><b>http://fltk.org</b></a>"
 		"<br><br>"
-		"<b>"LIB_7ZIP_7ZIP_VERSION"</b><br>"
+		"<b>" LIB_7ZIP_7ZIP_VERSION "</b><br>"
 		"<a href=\"http://code.google.com/p/lib7zip/\"><b>http://code.google.com/p/lib7zip/</b></a>"
 		"<br><br>"
 		"<b>7-Zip dynamic library</b> (which is licensed under GNU LGPL)<br>"
@@ -10544,26 +10571,26 @@ static Fl_Menu_Item g_mnuTagPresets[] =
 	{ "author:", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
 	{ "contest:", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
 	{ "genre:", 0, NULL, NULL, FL_SUBMENU, 0, FL_HELVETICA, 12 },
-		{ TAGPRESET_CAT_CUST, 0, NULL, "genre:", FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
-		{ "action", 0, NULL, "genre:", 0, 0, FL_HELVETICA, 12 },
-		{ "crime", 0, NULL, "genre:", 0, 0, FL_HELVETICA, 12 },
-		{ "horror", 0, NULL, "genre:", 0, 0, FL_HELVETICA, 12 },
-		{ "mystery", 0, NULL, "genre:", 0, 0, FL_HELVETICA, 12 },
-		{ "puzzle", 0, NULL, "genre:", 0, 0, FL_HELVETICA, 12 },
+		{ TAGPRESET_CAT_CUST, 0, NULL, (void*)"genre:", FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
+		{ "action", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
+		{ "crime", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
+		{ "horror", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
+		{ "mystery", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
+		{ "puzzle", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
 		{ 0 },
 	{ "language:", 0, NULL, NULL, FL_SUBMENU, 0, FL_HELVETICA, 12 },
-		{ TAGPRESET_CAT_CUST, 0, NULL, "language:", FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
-		{ "English", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Czech", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Dutch", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "French", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "German", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Hungarian", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Italian", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Japanese", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Polish", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Russian", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Spanish", 0, NULL, "language:", 0, 0, FL_HELVETICA, 12 },
+		{ TAGPRESET_CAT_CUST, 0, NULL, (void*)"language:", FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
+		{ "English", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "Czech", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "Dutch", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "French", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "German", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "Hungarian", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "Italian", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "Japanese", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "Polish", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "Russian", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
+		{ "Spanish", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
 		{ 0 },
 	{ "series:", 0, NULL, NULL, FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
 	//{ "setting:", 0, NULL, NULL, FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
@@ -10649,9 +10676,9 @@ static void ConfigArchivePath(BOOL bStartupConfig)
 retry:
 	char fname[MAX_PATH_BUF];
 	if (g_cfg.bRepoOK)
-		_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"anyfile", g_cfg.archiveRepo.c_str());
+		_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "anyfile", g_cfg.archiveRepo.c_str());
 	else
-		_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s"DIRSEP"anyfile", g_pFMSelData->sRootPath);
+		_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "anyfile", g_pFMSelData->sRootPath);
 
 	const char *pattern[] =
 	{
@@ -12255,7 +12282,7 @@ static void InitControls()
 static void InitMainWnd()
 {
 	static char sTitle[256];
-	sprintf(sTitle, "%s -- [FMSel "FMSEL_VERSION"]", g_pFMSelData->sGameVersion);
+	sprintf(sTitle, "%s -- [FMSel " FMSEL_VERSION "]", g_pFMSelData->sGameVersion);
 	pMainWnd->label(sTitle);
 
 	if (g_cfg.windowsize[0] && g_cfg.windowsize[0])
@@ -12323,12 +12350,12 @@ static void InitTempCache()
 	if ( !isdirsep(g_sTempDir[g_sTempDir.size()-1]) )
 		g_sTempDir += DIRSEP;
 
-	g_sTempDir += ".fmsel.cache"DIRSEP;
+	g_sTempDir += ".fmsel.cache" DIRSEP;
 	if ( fl_filename_isdir_ex(g_sTempDir.c_str(), TRUE) )
 	{
 		// dir already existed, delete contents
 		dirent **files;
-		int nFiles = fl_filename_list(g_sTempDir.c_str(), &files, NULL, TRUE);
+		int nFiles = fl_filename_list(g_sTempDir.c_str(), &files, NO_COMP_UTFCONV);
 		if (nFiles > 0)
 		{
 			string s;
@@ -12423,6 +12450,7 @@ void ValidateTempCache()
 
 
 extern int FL_NORMAL_SIZE;
+#ifdef CUSTOM_FLTK
 extern Fl_Callback *fl_message_preshow_cb_;
 
 static void OnPrepareFlMessageBox(Fl_Window *w, void*)
@@ -12446,6 +12474,7 @@ static void OnPrepareFlMessageBox(Fl_Window *w, void*)
 
 	w->hotspot(-x, -y);
 }
+#endif
 
 static void fl_imagetext_label(const Fl_Label* o, int X, int Y, int W, int H, Fl_Align align)
 {
@@ -12596,8 +12625,10 @@ static void InitFLTK()
 	}
 #endif
 
+#ifdef CUSTOM_FLTK
 	// set custom pre-show callback for fl message boxes so that we can center them to the dialog instead of mouse
 	fl_message_preshow_cb_ = (Fl_Callback*)OnPrepareFlMessageBox;
+#endif
 
 	Fl::visual(FL_RGB);
 
