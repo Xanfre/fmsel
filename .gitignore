@@ -1,5 +1,7 @@
 Release
 Debug
+fmsel/objs
+fmsel/fmsel.dll
 *.ncb
 *.suo
 *.user

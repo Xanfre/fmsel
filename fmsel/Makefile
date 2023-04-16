@@ -12,7 +12,7 @@ endif
 CFLAGS_ALL = -O2 $(CFLAGS)
 CXXFLAGS_ALL = -O2 $(CXXFLAGS)
 CPPFLAGS_ALL = -std=gnu++11 -Wno-deprecated-declarations -Wno-stringop-overflow $(CPPFLAGS)
-LDFLAGS_ALL = fmsel.def $(LDFLAGS)
+LDFLAGS_ALL = $(LDFLAGS)
 
 LIBS =  -lfltk -lfltk_images -lfltk_jpeg -l7zip -lvorbisfile -lvorbis -logg
 

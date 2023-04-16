@@ -2023,11 +2023,9 @@ static void ScanArchiveRepo(const char *subdirname = NULL, int depth = 0)
 				}
 			}
 		}
-
-		free(f);
 	}
 
-	free(files);
+	fl_filename_free_list(&files, nFiles);
 }
 
 static void EnumFmDir(const char *name)
@@ -2097,11 +2095,9 @@ static void ScanFmDir()
 
 				EnumFmDir(name);
 			}
-
-			free(f);
 		}
 
-		free(files);
+		fl_filename_free_list(&files, nFiles);
 	}
 
 	// add all non-installed db entries with archive defined to archive hash (so ScanArchiveRepo can find them)
@@ -4122,7 +4118,6 @@ static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, dirent **files, const int 
 
 static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipFmIni = FALSE)
 {
-	int i;
 	char fname[MAX_PATH_BUF];
 
 	if (!bSkipFmIni)
@@ -4167,9 +4162,7 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 			bResult = ScanForTypeAndSetReleaseDate(fm, files, nFiles, mistypes, sizeof(mistypes)/sizeof(mistypes[0]), tmMin, tmMax);
 
 		// free data
-		for (i=0; i<nFiles; i++)
-			free(files[i]);
-		free(files);
+		fl_filename_free_list(&files, nFiles);
 	}
 	else
 	{
@@ -4525,9 +4518,7 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 		list.push_back(tmplist[i]);
 
 	// free data
-	for (i=0; i<nFiles; i++)
-		free(files[i]);
-	free(files);
+	fl_filename_free_list(&files, nFiles);
 
 	return !list.empty();
 }
@@ -4619,11 +4610,9 @@ static BOOL DelTreeInternal(const char *path)
 				bRet = FALSE;
 			}
 		}
-
-		free(f);
 	}
 
-	free(files);
+	fl_filename_free_list(&files, nFiles);
 
 	if ( _rmdir(path) )
 	{
@@ -4793,11 +4782,9 @@ static BOOL BackupOptDirToArchive(FMEntry *fm, const char *dirname)
 					bRet = FALSE;
 			}
 		}
-
-		free(f);
 	}
 
-	free(files);
+	fl_filename_free_list(&files, nFiles);
 
 	return bRet;
 }
@@ -4866,11 +4853,9 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 							bFailed = TRUE;
 				}
 			}
-
-			free(f);
 		}
 
-		free(files);
+		fl_filename_free_list(&files, nFiles);
 
 		if (bFailed)
 			goto abort;
@@ -5569,11 +5554,11 @@ static void CheckMissionFlags(const char *installdir)
 	}
 
 	BOOL bMissFlagsExist = FALSE;
-	dirent **sfiles;
-	int nSfiles = fl_filename_list(fpath, &sfiles, NO_COMP_UTFCONV);
-	for (int i=0; i<nSfiles; i++)
+	dirent **files;
+	int nFiles = fl_filename_list(fpath, &files, NO_COMP_UTFCONV);
+	for (int i=0; i<nFiles; i++)
 	{
-		dirent *f = sfiles[i];
+		dirent *f = files[i];
 
 		int len = strlen(f->d_name);
 		if (f->d_name[0] != '.' && isdirsep(f->d_name[len-1]))
@@ -5584,11 +5569,11 @@ static void CheckMissionFlags(const char *installdir)
 			strcat(fpath, DIRSEP);
 			strcat(fpath, f->d_name);
 
-			dirent **ssfiles;
-			int nSsfiles = fl_filename_list(fpath, &ssfiles, NO_COMP_UTFCONV);
-			for (int j=0; j<nSsfiles; j++)
+			dirent **sfiles;
+			int nSfiles = fl_filename_list(fpath, &sfiles, NO_COMP_UTFCONV);
+			for (int j=0; j<nSfiles; j++)
 			{
-				f = ssfiles[j];
+				f = sfiles[j];
 
 				if ( stristr(f->d_name, missflagfile) )
 				{
@@ -5597,9 +5582,7 @@ static void CheckMissionFlags(const char *installdir)
 				}
 			}
 
-			for (int j=0; j<nSsfiles; j++)
-				free(ssfiles[j]);
-			free(ssfiles);
+			fl_filename_free_list(&sfiles, nSfiles);
 		}
 		else
 		{
@@ -5614,9 +5597,7 @@ static void CheckMissionFlags(const char *installdir)
 			break;
 	}
 
-	for (int i=0; i<nSfiles; i++)
-		free(sfiles[i]);
-	free(sfiles);
+	fl_filename_free_list(&files, nFiles);
 
 	if (bMissFlagsExist)
 		return;
@@ -5626,8 +5607,7 @@ static void CheckMissionFlags(const char *installdir)
 
 	vector<int> misnums;
 
-	dirent **files;
-	int nFiles = fl_filename_list(installdir, &files, NO_COMP_UTFCONV);
+	nFiles = fl_filename_list(installdir, &files, NO_COMP_UTFCONV);
 	if (nFiles <= 0)
 		return;
 
@@ -5649,9 +5629,7 @@ static void CheckMissionFlags(const char *installdir)
 		}
 	}
 
-	for (int i=0; i<nFiles; i++)
-		free(files[i]);
-	free(files);
+	fl_filename_free_list(&files, nFiles);
 
 	if (misnums.size() == 0)
 		return;
@@ -5985,11 +5963,9 @@ static BOOL EnumFileDiffInfo(const char *path, int relname_start)
 				g_fileDiffInfoMap[FKEY(info.fname_rel)] = info;
 			}
 		}
-
-		free(f);
 	}
 
-	free(files);
+	fl_filename_free_list(&files, nFiles);
 
 	info.fname = NULL;
 
@@ -6386,10 +6362,7 @@ static void ScanDirForLanguage(const char *subdirname, LangEnumContext &ctxt, in
 							if (ctxt.lpszEarlyOutOn && !strcmp(lpszLang, ctxt.lpszEarlyOutOn))
 							{
 								// we're done, free data and return
-								free(f);
-								for (i++; i<nFiles; i++)
-									free(files[i]);
-								free(files);
+								fl_filename_free_list(&files, nFiles);
 								return;
 							}
 
@@ -6419,11 +6392,9 @@ static void ScanDirForLanguage(const char *subdirname, LangEnumContext &ctxt, in
 				}
 			}
 		}
-
-		free(f);
 	}
 
-	free(files);
+	fl_filename_free_list(&files, nFiles);
 }
 
 static BOOL GetLanguages(FMEntry *fm, std::list<string> &langlist, BOOL bEarlyOutOnEnglish = FALSE)
@@ -12395,11 +12366,9 @@ static void InitTempCache()
 						TRACE("failed to delete temp dir file: %s", s.c_str());
 					}
 				}
-
-				free(f);
 			}
 
-			free(files);
+			fl_filename_free_list(&files, nFiles);
 		}
 	}
 	else
