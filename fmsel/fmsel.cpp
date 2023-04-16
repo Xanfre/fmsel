@@ -3527,7 +3527,7 @@ static BOOL FmOpenFileWithAssociatedApp(FMEntry *fm, const char *filename)
 		// extract file from archive to temp dir
 
 		string s;
-		if ( !FmGetPhysicalFileFromArchive(fm, filename, s, FALSE)
+		if ( !FmGetPhysicalFileFromArchive(fm, filename, s, FALSE) )
 			return FALSE;
 
 		return OpenFileWithAssociatedApp(filename, g_sTempDirAbs.c_str());
