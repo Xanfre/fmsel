@@ -3178,7 +3178,12 @@ static BOOL ReadModIni(FMEntry *fm, const FMEntry *realfm)
 
 				// make sure it has a http prefix
 				if (!homepage.empty() && _strnicmp(homepage.c_str(), "http", 4))
-					homepage = "http://" + homepage;
+				{
+					if ( _strnicmp(homepage.c_str(), "https", 5) )
+						homepage = "https://" + homepage;
+					else
+						homepage = "http://" + homepage;
+				}
 			}
 		}
 		else if ( !_stricmp(s, "[modName]") )
@@ -9920,7 +9925,7 @@ static string TextToHtml(const char *text)
 			/*skip*/;
 		else if (*s == '\t')
 			d += '\t';// TODO: what should we do with tabs?
-		else if ( !_strnicmp(s, "http://", 7) )
+		else if ( !_strnicmp(s, "http://", 7) || !_strnicmp(s, "https://", 8) )
 		{
 			const char *url = s;
 
@@ -10449,10 +10454,10 @@ static void ViewAbout()
 		"%s <b>" MP3LIB "</b> (x86 / 32-bit) %s " FMSELLIB ".<br>" // $("To enable support for MP3 to WAV conversion during FM install, you must download"), $("and put it in the same directory as")
 		"<br>"
 		"%s<br>" // $("Links for binary downloads of the LAME MP3 library can be found on:")
-		"<a href=\"http://lame.sourceforge.net/links.php#Binaries\"><b>http://lame.sourceforge.net/links.php#Binaries</b></a><br>"
+		"<a href=\"https://lame.sourceforge.net/links.php#Binaries\"><b>https://lame.sourceforge.net/links.php#Binaries</b></a><br>"
 		"<br>"
 		"%s<br>" // $("Direct link to the recommended site on that list:")
-		"<a href=\"http://www.rarewares.org/mp3-lame-libraries.php\"><b>http://www.rarewares.org/mp3-lame-libraries.php</b></a><br>"
+		"<a href=\"https://www.rarewares.org/mp3-lame-libraries.php\"><b>https://www.rarewares.org/mp3-lame-libraries.php</b></a><br>"
 		"<br>"
 
 		"<center><font color=\"%s\"><hr></font></center>"
@@ -10462,17 +10467,17 @@ static void ViewAbout()
 		"<table width=\"98%%\"><tr bgcolor=\"%s\"><tr><td width=\"5%%\"></td><td width=\"95%%\">"
 
 		"<b>fltk v%d.%d.%d</b><br>"
-		"<a href=\"http://fltk.org\"><b>http://fltk.org</b></a>"
+		"<a href=\"https://www.fltk.org\"><b>https://www.fltk.org</b></a>"
 		"<br><br>"
 		"<b>" LIB_7ZIP_7ZIP_VERSION "</b><br>"
-		"<a href=\"http://code.google.com/p/lib7zip/\"><b>http://code.google.com/p/lib7zip/</b></a>"
+		"<a href=\"https://code.google.com/archive/p/lib7zip/\"><b>https://code.google.com/archive/p/lib7zip/</b></a>"
 		"<br><br>"
 		"<b>7-Zip dynamic library</b> (which is licensed under GNU LGPL)<br>"
-		"<a href=\"http://7-zip.org\"><b>http://7-zip.org</b></a>"
+		"<a href=\"https://7-zip.org\"><b>https://7-zip.org</b></a>"
 #ifdef OGG_SUPPORT
 		"<br><br>"
 		"<b>%s</b>, Copyright (c) 2002-2008 Xiph.org Foundation<br>"
-		"<a href=\"http://xiph.org/vorbis/\"><b>http://xiph.org/vorbis/</b></a>"
+		"<a href=\"https://xiph.org/vorbis/\"><b>https://xiph.org/vorbis/</b></a>"
 #endif
 
 		, $("FM selector and manager for dark engine games.")
