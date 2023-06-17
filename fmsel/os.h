@@ -35,7 +35,11 @@ void FltkTermOS();
 unsigned int GetProcessIdOS();
 void WaitOS(int ms);
 void WaitForProcessExitOS(unsigned int pid, int waitms);
+#ifdef _WIN32
 BOOL OpenFileWithAssociatedApp(const char *filename, const char *dirname);
+#else
+BOOL OpenFileWithAssociatedApp(const char *path);
+#endif
 BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser = 0);
 BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **pattern, const char *defext, const char *initial, char *result, int len, BOOL bOpenNoExist = 0);
 BOOL GetFreeDiskSpaceOS(const char *path, unsigned __int64 &freeMB);

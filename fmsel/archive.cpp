@@ -13,6 +13,9 @@
 #include "archive.h"
 #include "os.h"
 #include "lang.h"
+#if !defined(_WIN32) && defined(__int64)
+#undef __int64
+#endif
 #include <lib7zip.h>
 #include <FL/fl_ask.H>
 #include <FL/filename.H>
@@ -22,17 +25,26 @@
 #include <windows.h>
 #endif
 
-#include <zip.h>
 #ifdef _WIN32
+#include <zip.h>
 #include <direct.h>
 #include <io.h>
 #include <iowin32.h>
 #include <sys/utime.h>
 #else
+#include <minizip/zip.h>
 #include <unistd.h>
 #include <utime.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <cstring>
+#define TRUE true
+#define FALSE false
+#define _stricmp strcasecmp
+#define _mkdir(a) mkdir(a,0755)
+#define _wcsicmp wcscasecmp
+#define MAX_PATH PATH_MAX
+#define max(a,b) (((a)>(b))?(a):(b))
 #endif
 
 #include "dbgutil.h"
@@ -275,6 +287,9 @@ public:
 	{
 #ifdef _WIN32
 		m_pFile = CreateFileW(fileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+#elif defined (__unix__)
+		wstring wFileName(fileName);
+		m_pFile = fopen(w2s(wFileName).c_str(), "wb");
 #else
 		m_pFile = _wfopen(fileName, L"wb");
 #endif
@@ -295,6 +310,9 @@ public:
 
 #ifdef _WIN32
 		m_pFile = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+#elif defined(__unix__)
+		std::string stmp = w2s(tmp);
+		m_pFile = fopen(stmp.c_str(), "wb");
 #else
 		m_pFile = _wfopen(tmp.c_str(), L"wb");
 #endif
@@ -312,6 +330,8 @@ public:
 				&& CreateAllSubDirsW((wchar_t*)tmp.c_str(), wdest.length(), wdest.length()+pos))
 #ifdef _WIN32
 				m_pFile = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+#elif defined(__unix__)
+				m_pFile = fopen(stmp.c_str(), "wb");
 #else
 				m_pFile = _wfopen(tmp.c_str(), L"wb");
 #endif
@@ -336,11 +356,21 @@ public:
 #else
 				fflush(m_pFile);
 
+#ifdef __unix__
+				struct timespec ts[2];
+				ts[0].tv_sec = m_tmFiletime;
+				ts[0].tv_nsec = 0;
+				ts[1].tv_sec = m_tmFiletime;
+				ts[1].tv_nsec = 0;
+
+				futimens(fileno(m_pFile), ts);
+#else
 				struct _utimbuf ut;
 				ut.actime = m_tmFiletime;
 				ut.modtime = m_tmFiletime;
 
 				_futime(_fileno(m_pFile), &ut);
+#endif
 #endif
 			}
 
@@ -524,10 +554,10 @@ protected:
 public:
 	FileOutStreamFactory(C7ZipArchive *pArchive, const wstring &wdest, wstring &tmp, time_t arch_mtime)
 		: m_pArchive(pArchive),
+		m_bFailed(FALSE),
 		m_wdest(wdest),
 		m_tmp(tmp),
 		m_tmFiletimeFallback(arch_mtime),
-		m_bFailed(FALSE),
 		m_bWriteError(FALSE)
 	{
 	}
@@ -653,7 +683,7 @@ static wstring s2w(const char *str)
 	int n = MultiByteToWideChar(CP_ACP, 0, str, strlen(str), buf, sizeof(buf)/sizeof(buf[0]));
 	buf[n] = 0;
 #else
-	int n = mbtowc(buf, str, strlen(str));
+	int n = mbstowcs(buf, str, strlen(str));
 	buf[max(0,n)] = 0;
 #endif
 
@@ -715,7 +745,12 @@ static BOOL CreateAllSubDirsW(wchar_t *filepath, int subdir_start, int subdir_en
 			break;
 
 		*s = 0;
+#ifdef __unix__
+		wstring wfilepath(filepath);
+		ok = !mkdir(w2s(wfilepath).c_str(), 0755) || errno == EEXIST;
+#else
 		ok = !_wmkdir(filepath) || errno == EEXIST;
+#endif
 		*s = *DIRSEPW;
 
 		if (!ok)

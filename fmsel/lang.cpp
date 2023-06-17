@@ -14,7 +14,12 @@
 #include "os.h"
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef _WIN32
 #include <io.h>
+#else
+#define _strnicmp strncasecmp
+#define strnicmp strncasecmp
+#endif
 
 #ifdef LOCALIZATION_SUPPORT
 
@@ -239,7 +244,13 @@ void InitLocalization()
 	if (!f)
 		return;
 
+#ifdef _WIN32
 	int n = _filelength( _fileno(f) );
+#else
+	fseek(f, 0, SEEK_END);
+	int n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+#endif
 	if (n <= 0)
 	{
 		fclose(f);

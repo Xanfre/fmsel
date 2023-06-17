@@ -10,7 +10,21 @@
  * FMSel.
  */
 
+#ifdef _WIN32
 #include <direct.h>
+#else
+#include <unistd.h>
+#include <sys/statvfs.h>
+#include <sys/wait.h>
+#define TRUE true
+#define FALSE false
+#define _utime utime
+#define _utimbuf utimbuf
+#define sprintf_s snprintf
+#define strcat_s(a,b,c) strncat(a,c,b-strlen(a)-1)
+#define strcpy_s(a,b,c) memset(a,0,b); strncpy(a,c,b-1);
+#define MAX_PATH PATH_MAX
+#endif
 #include <sys/stat.h>
 #include <FL/Fl.H>
 #ifdef _WIN32
@@ -152,17 +166,41 @@ void WaitForProcessExitOS(unsigned int pid, int waitms)
 	else
 		WaitOS(MINWAIT);
 #else
-	WaitOS(ms);
+	WaitOS(waitms);
 #endif
 }
 
+#ifdef _WIN32
 BOOL OpenFileWithAssociatedApp(const char *filename, const char *dirname)
 {
-#ifdef _WIN32
 	int res = (int) ShellExecuteA(NULL, "open", filename, NULL, dirname, SW_SHOWNORMAL);
 	return res > 32;
-#endif
 }
+#else
+BOOL OpenFileWithAssociatedApp(const char *path)
+{
+	pid_t pid = fork();
+	if (pid < 0)
+		return false;
+	else if (0 == pid)
+	{
+		setsid();
+		pid = fork();
+		// exit unless this is the child
+		if (0 != pid)
+			exit(pid > 0 ? 0 : 1);
+		char *argv[3] = { NULL, NULL, NULL };
+		// set the command and get the file path
+		// neither needs to be freed since the heap will be discarded by execvp
+		argv[0] = strdup("xdg-open");
+		argv[1] = strdup(path);
+		if (-1 == execvp(argv[0], argv))
+			exit(1);
+	}
+	int status;
+	return -1 != waitpid(pid, &status, 0) && WIFEXITED(status) && 0 == WEXITSTATUS(status);
+}
+#endif
 
 BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser)
 {
@@ -172,6 +210,30 @@ BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser)
 
 	int res = (int) ShellExecuteA(NULL, "open", custombrowser, url, NULL, SW_SHOWNORMAL);
 	return res > 32;
+#else
+	if (!custombrowser || !*custombrowser)
+		return OpenFileWithAssociatedApp(url);
+
+	pid_t pid = fork();
+	if (pid < 0)
+		return false;
+	else if (0 == pid)
+	{
+		setsid();
+		pid = fork();
+		// exit unless this is the child
+		if (0 != pid)
+			exit(pid > 0 ? 0 : 1);
+		char *argv[3] = { NULL, NULL, NULL };
+		// set the browser and get the file path
+		// neither needs to be freed since the heap will be discarded by execvp
+		argv[0] = strdup(custombrowser);
+		argv[1] = strdup(url);
+		if (-1 == execvp(argv[0], argv))
+			exit(1);
+	}
+	int status;
+	return -1 != waitpid(pid, &status, 0) && WIFEXITED(status) && 0 == WEXITSTATUS(status);
 #endif
 }
 
@@ -310,7 +372,15 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 	}
 
 retry:
+	int iFontSize = 0;
+	if (FL_NORMAL_SIZE > 18)
+	{
+		iFontSize = FL_NORMAL_SIZE;
+		FL_NORMAL_SIZE = 18;
+	}
 	const char *s = fl_file_chooser(title, filter, initial_);
+	if (iFontSize != 0)
+		FL_NORMAL_SIZE = iFontSize;
 	if (!s)
 		return FALSE;
 
@@ -339,10 +409,13 @@ BOOL GetFreeDiskSpaceOS(const char *path, unsigned __int64 &freeMB)
 	if ( !GetDiskFreeSpaceExA(path, &avail, &tot, &totavail) )
 		return FALSE;
 	freeMB = avail.QuadPart / (ULONGLONG)(1024*1024);
-	return TRUE;
 #else
-	TODO
+	struct statvfs st;
+	if (-1 == statvfs(path, &st))
+		return FALSE;
+	freeMB = (st.f_bsize*st.f_bavail) / (1024*1024);
 #endif
+	return TRUE;
 }
 
 BOOL CreateThreadOS(void* (*f)(void*), void *p)
@@ -351,7 +424,7 @@ BOOL CreateThreadOS(void* (*f)(void*), void *p)
 	return _beginthread((void(__cdecl*)(void*))f, 0, p) != 0;
 #else
 	pthread_t t;
-	return pthread_create(&t, 0, f, p) != 0;
+	return pthread_create(&t, 0, f, p) == 0;
 #endif
 }
 
@@ -456,13 +529,9 @@ void* LoadDynamicLibOS(const char *name)
 	if (!name || !*name)
 		return NULL;
 
-	char s[MAX_PATH+16];
-
 #ifdef _WIN32
-	sprintf_s(s, sizeof(s), "%s.dll", name);
 	return LoadLibraryA(name);
 #else
-	sprintf_s(s, sizeof(s), "%s.so", name);
 	return dlopen(name, RTLD_NOW);
 #endif
 }

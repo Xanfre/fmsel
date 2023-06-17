@@ -26,8 +26,30 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef _WIN32
 #include <direct.h>
 #include <io.h>
+#else
+#include <unistd.h>
+#define rsize_t size_t
+#define _S_IREAD S_IREAD
+#define _S_IWRITE S_IWRITE
+#define _mkgmtime timegm
+#define _stricmp strcasecmp
+#define _strnicmp strncasecmp
+#define _strdup strdup
+#define _strtoui64 strtoull
+#define _snprintf_s(a,b,c,...) snprintf(a,b,__VA_ARGS__)
+#define strcat_s(a,b,c) strncat(a,c,b-strlen(a)-1)
+#define _chmod chmod
+#define _mkdir(a) mkdir(a,0755)
+#define _rmdir rmdir
+#endif
+#ifdef _MSC_VER
+#include <stddef.h>
+#else
+#include <cstdint>
+#endif
 #include <errno.h>
 #include <FL/Fl.H>
 #include <FL/Fl_Tooltip.H>
@@ -53,6 +75,9 @@
 #undef min
 #undef max
 #include "dbgutil.h"
+#if !defined(_WIN32) && defined(__int64)
+#undef __int64
+#endif
 #include "lib7zip.h"
 #include "mp3.h"
 
@@ -152,6 +177,12 @@ static inline int isdirsep(char c) {return c=='/' || c=='\\';}
 #define ALIGN_NO_DRAW 0
 #define fl_filename_absolute_ex(a, b, c, d) fl_filename_absolute(a, b, c)
 #define fl_filename_isdir_ex(a, b) fl_filename_isdir(a)
+#endif
+
+#ifdef _MSC_VER
+#define DATFMT "I64X"
+#else
+#define DATFMT "lX"
 #endif
 
 static int tolower_utf(const char *str, int len, char *buf)
@@ -386,8 +417,8 @@ enum ImportMode
 
 #define MENU_SET(...) { ASSERT(menu_items < MAX_MENU_ITEMS); Fl_Menu_Item __mi = __VA_ARGS__; menu[menu_items++] = __mi; }
 
-#define MENU_ITEM_EX(_name, _id, _flgs) MENU_SET( { (_name), 0, NULL, (void*)(_id), (_flgs), 0, FL_HELVETICA, FL_NORMAL_SIZE } )
-#define MENU_RITEM(_name, _id, _selected) if (1) { MENU_SET( { (_name), 0, NULL, (void*)(_id), (_selected)?FL_MENU_INACTIVE:0, 0, (_selected)?FL_HELVETICA_BOLD:FL_HELVETICA, FL_NORMAL_SIZE } ); menu[menu_items-1].labeltype((_selected)?RADIO_SET_LABEL:RADIO_EMPTY_LABEL); }
+#define MENU_ITEM_EX(_name, _id, _flgs) MENU_SET( { (_name), 0, NULL, (void*)(intptr_t)(_id), (_flgs), 0, FL_HELVETICA, FL_NORMAL_SIZE } )
+#define MENU_RITEM(_name, _id, _selected) if (1) { MENU_SET( { (_name), 0, NULL, (void*)(intptr_t)(_id), (_selected)?FL_MENU_INACTIVE:0, 0, (_selected)?FL_HELVETICA_BOLD:FL_HELVETICA, FL_NORMAL_SIZE } ); menu[menu_items-1].labeltype((_selected)?RADIO_SET_LABEL:RADIO_EMPTY_LABEL); }
 #define MENU_TITEM(_name, _id, _selected) MENU_ITEM_EX(_name, _id, FL_MENU_TOGGLE|((_selected)?FL_MENU_VALUE:0));
 #define MENU_SUB(_name) MENU_SET( { (_name), 0, NULL, NULL, FL_SUBMENU, 0, FL_HELVETICA, FL_NORMAL_SIZE } )
 #define MENU_END() MENU_SET( { 0 } )
@@ -1464,7 +1495,7 @@ public:
 	BOOL WriteIni(FILE *f)
 	{
 		if ( !nicename.empty() ) fprintf(f, "NiceName=%s\r\n", nicename.c_str());
-		if (tmReleaseDate) fprintf(f, "ReleaseDate=%I64X\r\n", tmReleaseDate);
+		if (tmReleaseDate) fprintf(f, "ReleaseDate=%" DATFMT "\r\n", tmReleaseDate);
 		if ( !infofile.empty() ) fprintf(f, "InfoFile=%s\r\n", infofile.c_str());
 		if ( !tags.empty() ) fprintf(f, "Tags=%s\r\n", tags.c_str());
 		if ( !descr.empty() ) fprintf(f, "Descr=%s\r\n", descr.c_str());
@@ -1478,9 +1509,9 @@ public:
 		if ( !archive.empty() ) fprintf(f, "Archive=%s\n", archive.c_str());
 		if (flags & ~FLAG_NoSaveMask) fprintf(f, "Flags=%X\n", flags & ~FLAG_NoSaveMask);
 		if (status != STATUS_NotPlayed) fprintf(f, "Status=%d\n", status);
-		if (tmReleaseDate) fprintf(f, "ReleaseDate=%I64X\n", tmReleaseDate);
-		if (tmLastStarted) fprintf(f, "LastStarted=%I64X\n", tmLastStarted);
-		if (tmLastCompleted) fprintf(f, "LastCompleted=%I64X\n", tmLastCompleted);
+		if (tmReleaseDate) fprintf(f, "ReleaseDate=%" DATFMT "\n", tmReleaseDate);
+		if (tmLastStarted) fprintf(f, "LastStarted=%" DATFMT "\n", tmLastStarted);
+		if (tmLastCompleted) fprintf(f, "LastCompleted=%" DATFMT "\n", tmLastCompleted);
 		if (nCompleteCount) fprintf(f, "Completed=%d\n", nCompleteCount);
 		if (rating != -1) fprintf(f, "Rating=%d\n", rating);
 		if (priority) fprintf(f, "Priority=%d\n", priority);
@@ -1585,7 +1616,11 @@ static __inline tIStrHashKey KEY_UTF(const char *s)
 
 // override default hash calc for better hash search performance (original algo doesn't include all characters
 // in hash calc if string is longer than 10 chars, which reduces uniqueness)
+#if __cplusplus >= 201103L
+struct KeyHash
+#else
 struct KeyHash : public std::unary_function<tIStrHashKey, size_t>
+#endif
 {
 	size_t operator()(const tIStrHashKey& _Keyval) const
 	{
@@ -1708,7 +1743,13 @@ static BOOL LoadInstallInfo(FMEntry *fm)
 
 	// read file into buffer
 
+#ifdef _WIN32
 	int n = _filelength( _fileno(f) );
+#else
+	fseek(f, 0, SEEK_END);
+	int n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+#endif
 	if (n <= 0)
 	{
 		fclose(f);
@@ -1799,7 +1840,13 @@ static BOOL LoadRemoveFileInfo(FMEntry *fm)
 
 	// read file into buffer
 
+#ifdef _WIN32
 	int n = _filelength( _fileno(f) );
+#else
+	fseek(f, 0, SEEK_END);
+	int n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+#endif
 	if (n <= 0)
 	{
 		fclose(f);
@@ -1901,9 +1948,15 @@ static void GenerateArchiveInstallName(const char *name, FMEntry *fm)
 		char altname[32];
 		char seq[8];
 
+#ifdef _WIN32
 		for (int i=0; ; i++)
 		{
 			sprintf(seq, "(%d)", i+2);
+#else
+		for (unsigned short i=0; ; i++)
+		{
+			sprintf(seq, "(%u)", i+2);
+#endif
 			int l = strlen(seq);
 			if (n+l > 30)
 			{
@@ -3465,7 +3518,13 @@ static BOOL FmReadFileToBuffer(const FMEntry *fm, const char *fname, char *&data
 	if (!f)
 		return FALSE;
 
+#ifdef _WIN32
 	int n = _filelength( _fileno(f) );
+#else
+	fseek(f, 0, SEEK_END);
+	int n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+#endif
 	if (n <= 0)
 	{
 		fclose(f);
@@ -3528,17 +3587,33 @@ static BOOL FmOpenFileWithAssociatedApp(FMEntry *fm, const char *filename)
 		// extract file from archive to temp dir
 
 		string s;
-		if ( !FmGetPhysicalFileFromArchive(fm, filename, s, FALSE) )
+		if ( !FmGetPhysicalFileFromArchive(fm, filename, s, FALSE)
+#ifndef _WIN32
+			|| snprintf(pathname, sizeof(pathname), "%s" DIRSEP "%s", g_sTempDirAbs.c_str(), filename) == -1
+#endif
+			)
 			return FALSE;
 
+#ifdef _WIN32
 		return OpenFileWithAssociatedApp(filename, g_sTempDirAbs.c_str());
+#else
+		return OpenFileWithAssociatedApp(pathname);
+#endif
 	}
 	else
 	{
+#ifdef _WIN32
 		if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
+#else
+		if (snprintf(pathname, sizeof(pathname), "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, filename) == -1)
+#endif
 			return FALSE;
 
+#ifdef _WIN32
 		return OpenFileWithAssociatedApp(filename, pathname);
+#else
+		return OpenFileWithAssociatedApp(pathname);
+#endif
 	}
 }
 
@@ -4346,8 +4421,9 @@ static char* strcpy_safe(char *_Dst, rsize_t _SizeInBytes, const char *_Src)
 {
 	if (_SizeInBytes > 0)
 	{
-		char *r = strncpy(_Dst, _Src, _SizeInBytes);
-		_Dst[_SizeInBytes-1];
+		rsize_t len = strlen(_Src);
+		char *r = strncpy(_Dst, _Src, _SizeInBytes-1);
+		_Dst[_SizeInBytes > len ? len : _SizeInBytes-1] = '\0';
 		return r;
 	}
 
@@ -5506,6 +5582,7 @@ retry:
 }
 
 
+/*
 static BOOL GetLanguagePacks(const char *archivepath, std::list<string> &langpacks)
 {
 	// check if archive contains language packs inside (archive files in the root that are named as a language)
@@ -5541,21 +5618,37 @@ static BOOL GetLanguagePacks(const char *archivepath, std::list<string> &langpac
 
 	return !langpacks.empty();
 }
+*/
 
 
 static void CheckMissionFlags(const char *installdir)
 {
+#ifdef _WIN32
 	const char *strdirname = "strings";
+#else
+	char strdirname[8] = "STRINGS";
+#endif
 	const char *missflagfile = "missflag.str";
 
 	char fpath[MAX_PATH_BUF];
-	if (_snprintf_s(fpath, sizeof(fpath), "%s" DIRSEP "%s", installdir, strdirname) == -1)
+	if (_snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s" DIRSEP "%s", installdir, strdirname) == -1)
 		return;
 
 	if ( !fl_filename_isdir_ex(fpath, TRUE) )
 	{
-		if ( _mkdir(fpath) )
+#ifndef _WIN32
+		for (char *c = strdirname; *c != '\0'; c++)
+			*c = tolower(*c);
+		if (snprintf(fpath, sizeof(fpath), "%s" DIRSEP "%s", installdir, strdirname) == -1)
 			return;
+		if ( !fl_filename_isdir_ex(fpath, TRUE) )
+		{
+#endif
+			if ( _mkdir(fpath) )
+				return;
+#ifndef _WIN32
+		}
+#endif
 	}
 
 	BOOL bMissFlagsExist = FALSE;
@@ -5607,10 +5700,10 @@ static void CheckMissionFlags(const char *installdir)
 	if (bMissFlagsExist)
 		return;
 
-	if (_snprintf_s(fpath, sizeof(fpath), "%s" DIRSEP "%s" DIRSEP "%s", installdir, strdirname, missflagfile) == -1)
+	if (_snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", installdir, strdirname, missflagfile) == -1)
 		return;
 
-	vector<int> misnums;
+	vector<unsigned char> misnums;
 
 	nFiles = fl_filename_list(installdir, &files, NO_COMP_UTFCONV);
 	if (nFiles <= 0)
@@ -5629,7 +5722,7 @@ static void CheckMissionFlags(const char *installdir)
 			{
 				int misnum = atoi(fname.substr(4, ext - 4).c_str());
 				if (misnum > 0 && misnum <= 99)
-					misnums.push_back(misnum);
+					misnums.push_back((unsigned char)misnum);
 			}
 		}
 	}
@@ -5642,11 +5735,11 @@ static void CheckMissionFlags(const char *installdir)
 	sort(misnums.begin(), misnums.end());
 
 	string str = "";
-	for (int i = 1; i <= misnums.back(); i++)
+	for (unsigned char i = 1; i <= misnums.back(); i++)
 	{
 		str.append("miss_");
 		char misnum[4];
-		_itoa(i, misnum, 10);
+		_snprintf_s(misnum, sizeof(misnum), _TRUNCATE, "%u", i);
 		str.append(misnum);
 		str.append(": ");
 		if ( count(misnums.begin(), misnums.end(), i) )
@@ -5861,7 +5954,7 @@ static BOOL InstallFM(FMEntry *fm)
 
 		// make sure there's no fmsel.inf in the main FM archive (with potentially malicious content to remove files
 		// outside of install dir)
-		const BOOL bInstallInfoSafe = !remove_forced( (tmpdir + DIRSEP"fmsel.inf").c_str() ) || errno == ENOENT;
+		const BOOL bInstallInfoSafe = !remove_forced( (tmpdir + DIRSEP "fmsel.inf").c_str() ) || errno == ENOENT;
 
 		if (ExtractFullArchive(bakarchive.c_str(), tmpdir.c_str(), bShowBakProgress ? $("Restoring backup...") : NULL, &pErrMsg) != 1)
 		{
@@ -6087,7 +6180,7 @@ static BOOL UninstallFM(FMEntry *fm)
 		if (g_bRunningShock)
 			// delete the 'current' dir from shock FMs (the current dir is just a temp folder that gets created
 			// each time a savegame is loaded, we don't want that part of any backup)
-			DelTree(string(installdir) + DIRSEP"current");
+			DelTree(string(installdir) + DIRSEP "current");
 
 		// enumerate all files in the install dir with mtime and size into
 		if ( !EnumFileDiffInfo(installdir, strlen(installdir)) )
@@ -6501,7 +6594,27 @@ static BOOL IsLanguageInList(std::list<string> &langlist, const char *lang)
 // FM_Return_Button (hides return icon when disabled)
 //
 
+#if defined(CUSTOM_FLTK) || defined(STATIC)
 extern int fl_return_arrow(int x, int y, int w, int h);
+#else
+int fl_return_arrow(int x, int y, int w, int h) {
+	int size = w; if (h<size) size = h;
+	int d = (size+2)/4; if (d<3) d = 3;
+	int t = (size+9)/12; if (t<1) t = 1;
+	int x0 = x+(w-2*d-2*t-1)/2;
+	int x1 = x0+d;
+	int y0 = y+h/2;
+	fl_color(FL_LIGHT3);
+	fl_line(x0, y0, x1, y0+d);
+	fl_yxline(x1, y0+d, y0+t, x1+d+2*t, y0-d);
+	fl_yxline(x1, y0-t, y0-d);
+	fl_color(fl_gray_ramp(0));
+	fl_line(x0, y0, x1, y0-d);
+	fl_color(FL_DARK3);
+	fl_xyline(x1+1, y0-t, x1+d, y0-d, x1+d+2*t);
+	return 1;
+}
+#endif
 
 class Fl_FM_Return_Button : public Fl_Return_Button
 {
@@ -6662,7 +6775,7 @@ public:
 		strcat_s(dateformats[0], sizeof(dateformats[0]), $("(cur locale)"));
 		dateformats[0][sizeof(dateformats[0])-1] = 0;
 
-		const int MAX_MENU_ITEMS = 64;
+		const int MAX_MENU_ITEMS = 64+8;
 		int menu_items = 0;
 
 		Fl_Menu_Item menu[MAX_MENU_ITEMS];
@@ -6745,7 +6858,7 @@ public:
 		if (!m || !m->user_data())
 			return;
 
-		const int cmd_id = (int)m->user_data();
+		const int cmd_id = (intptr_t)m->user_data();
 		switch (cmd_id)
 		{
 		case CMD_ToggleVarSizeRows:
@@ -6901,9 +7014,9 @@ protected:
 		else if (e == FL_KEYBOARD)
 		{
 			const int key = Fl::event_key();
-			const int XK_ISO_Left_Tab = 0xfe20;
+			const int _XK_ISO_Left_Tab = 0xfe20;
 
-			if (key == FL_Tab || key == XK_ISO_Left_Tab)
+			if (key == FL_Tab || key == _XK_ISO_Left_Tab)
 				return parent()->Fl_Group::handle(e);
 
 			if (key == FL_Enter || key == FL_KP_Enter)
@@ -6973,17 +7086,17 @@ protected:
 
 		virtual void *item_next(void *p) const
 		{
-			return ((int)p < (int)m_suggestions.size()) ? (void*)((int)p + 1) : 0;
+			return ((intptr_t)p < (int)m_suggestions.size()) ? (void*)((intptr_t)p + 1) : 0;
 		}
 
 		virtual void *item_prev(void *p) const
 		{
-			return (int)p ? (void*)((int)p - 1) : 0;
+			return (intptr_t)p ? (void*)((intptr_t)p - 1) : 0;
 		}
 
 		virtual void item_draw(void *p, int X, int Y, int W, int H) const
 		{
-			const char *str = m_suggestions[(int)p - 1].c_str();
+			const char *str = m_suggestions[(intptr_t)p - 1].c_str();
 			const int prefixlen = m_prefix.length();
 			int prefixW = m_prefixW;
 
@@ -7116,7 +7229,7 @@ protected:
 
 		const char* value() const
 		{
-			return selection() ? m_suggestions[(int)selection() - 1].c_str() : NULL;
+			return selection() ? m_suggestions[(intptr_t)selection() - 1].c_str() : NULL;
 		}
 
 		const char* first_value() const
@@ -7291,7 +7404,7 @@ protected:
 
 		int handle_list_key(int key)
 		{
-			const int XK_ISO_Left_Tab = 0xfe20;
+			const int _XK_ISO_Left_Tab = 0xfe20;
 
 			const char *s;
 
@@ -7311,7 +7424,7 @@ protected:
 					hide();
 					return 1;
 				}
-			case XK_ISO_Left_Tab:
+			case _XK_ISO_Left_Tab:
 				// if nothing is selected in list then select first row
 				if ( !m_pList->value() )
 					m_pList->select_first();
@@ -7371,7 +7484,7 @@ protected:
 		{
 		case FL_KEYBOARD:
 			{
-			const int XK_ISO_Left_Tab = 0xfe20;
+			const int _XK_ISO_Left_Tab = 0xfe20;
 
 			if (m_pList && m_pList->visible())
 				if ( m_pList->handle_list_key( Fl::event_key() ) )
@@ -7380,7 +7493,7 @@ protected:
 			switch ( Fl::event_key() )
 			{
 			case FL_Tab:
-			case XK_ISO_Left_Tab:
+			case _XK_ISO_Left_Tab:
 				return parent()->Fl_Group::handle(e);
 
 			case FL_Left:
@@ -8054,7 +8167,7 @@ public:
 		if (!m || !m->user_data())
 			return;
 
-		const int cmd_id = (int)m->user_data();
+		const int cmd_id = (intptr_t)m->user_data();
 		switch (cmd_id)
 		{
 		case CMD_Play:
@@ -8488,6 +8601,7 @@ draw_sortarrow:
 
 	case CONTEXT_ENDPAGE:
 	case CONTEXT_RC_RESIZE:
+	case CONTEXT_RC_RESIZED:
 	case CONTEXT_NONE:
 	case CONTEXT_TABLE:
 		return;
@@ -8537,6 +8651,14 @@ void Fl_FM_List::OnCallback()
 
 	case CONTEXT_RC_RESIZED:
 		refresh_formatting();
+		break;
+
+	case CONTEXT_STARTPAGE:
+	case CONTEXT_ENDPAGE:
+	case CONTEXT_ROW_HEADER:
+	case CONTEXT_TABLE:
+	case CONTEXT_RC_RESIZE:
+	case CONTEXT_NONE:
 		break;
 	}
 }
@@ -8844,7 +8966,11 @@ public:
 		while (!m_bDone)
 		{
 			Fl_Widget *o = Fl::readqueue();
+#ifdef _WIN32
 			if (!o) Fl::wait();
+#else
+			if (!o) Fl::wait(0);
+#endif
 		}
 
 		Fl::release();
@@ -9436,7 +9562,12 @@ public:
 
 			// determine if category should be display as a html link or not (in tag editor it's always a link,
 			// otherwise only link if not already added as a filter)
+#ifdef _WIN32
 			strncpy_s(buff, sizeof(buff), cat, cat_len);
+#else
+			memset(buff, 0, sizeof(buff));
+			strncpy(buff, cat, sizeof(buff) > (size_t)cat_len ? cat_len : sizeof(buff)-1);
+#endif
 			const int cat_fm_count = g_dbTagCountHash[KEY_UTF(buff)];
 			buff[cat_len] = '*'; buff[cat_len+1] = 0;
 			const BOOL cat_is_filtered = !m_bTagEdit && IsTagInFilterList(buff);
@@ -9897,6 +10028,7 @@ FMEntry *Fl_FM_Descr_Popup::s_pShowNext = NULL;
 vector<string> Fl_FM_Descr_Popup::s_infoList;
 
 
+/*
 static void replace_all(string &s, const string &sFind, const string &sReplace)
 {
 	size_t start_pos = 0;
@@ -9906,6 +10038,7 @@ static void replace_all(string &s, const string &sFind, const string &sReplace)
 		start_pos += sReplace.length();
 	}
 }
+*/
 
 // convert a string to HTML (with automatic hyperlinks)
 static string TextToHtml(const char *text)
@@ -10457,8 +10590,10 @@ static void ViewAbout()
 		"<a href=\"https://lame.sourceforge.net/links.php#Binaries\"><b>https://lame.sourceforge.net/links.php#Binaries</b></a><br>"
 		"<br>"
 		"%s<br>" // $("Direct link to the recommended site on that list:")
+#ifdef _WIN32
 		"<a href=\"https://www.rarewares.org/mp3-lame-libraries.php\"><b>https://www.rarewares.org/mp3-lame-libraries.php</b></a><br>"
 		"<br>"
+#endif
 
 		"<center><font color=\"%s\"><hr></font></center>"
 		"This program uses:<br>"
@@ -10485,7 +10620,11 @@ static void ViewAbout()
 		, $("To enable support for MP3 to WAV conversion during FM install, you must download")
 		, $("and put it in the same directory as")
 		, $("Links for binary downloads of the LAME MP3 library can be found on:")
+#ifdef _WIN32
 		, $("Direct link to the recommended site on that list:")
+#else
+		, $("It is recommended to use your operating system's package manager to acquire compatible binaries if at all possible.")
+#endif
 		, DARK() ? "#376189" : "#719DC8"
 		, DARK() ? "#035493" : "#4C90D4"
 		, FL_MAJOR_VERSION, FL_MINOR_VERSION, FL_PATCH_VERSION
@@ -10878,7 +11017,11 @@ static int DoImportBatchFmIniDialog()
 			}
 		}
 
+#ifdef _WIN32
 		if (!o) Fl::wait();
+#else
+		if (!o) Fl::wait(0);
+#endif
 	}
 
 	if (bOK)
@@ -11017,7 +11160,11 @@ int RunProgress()
 		else
 			g_pProgressBar->value((float)g_nCurProgress);
 
+#ifdef _WIN32
 		if (!o) Fl::wait();
+#else
+		if (!o) Fl::wait(0);
+#endif
 	}
 
 	TermProgress();
@@ -11793,7 +11940,11 @@ static void DoTagEditor(FMEntry *fm, int page)
 	while ( pDlg->visible() )
 	{
 		Fl_Widget *o = Fl::readqueue();
+#ifdef _WIN32
 		if (!o) Fl::wait();
+#else
+		if (!o) Fl::wait(0);
+#endif
 	}
 
 	delete (Fl_Widget*)pDlg;
@@ -11918,7 +12069,7 @@ static void OnFilterToggle(Fl_FM_Filter_Button *o, void *p)
 {
 	const BOOL bEnabled = o->value();
 
-	switch ((int)p)
+	switch ((intptr_t)p)
 	{
 	// status not played
 	case 1: g_cfg.SetFilterShow(FSHOW_NotPlayed, bEnabled); break;
@@ -12562,12 +12713,12 @@ static void InitFLTK()
 	_snprintf_s(TAGPRESET_CAT_CUST, sizeof(TAGPRESET_CAT_CUST), _TRUNCATE, "<%s>", $("custom"));
 
 	// copy original untranslated tag preset names
-	for (int i=0; i<sizeof(g_mnuTagPresets)/sizeof(g_mnuTagPresets[0]); i++)
+	for (unsigned int i=0; i<sizeof(g_mnuTagPresets)/sizeof(g_mnuTagPresets[0]); i++)
 		g_tagPresetsEnglish[i] = g_mnuTagPresets[i].text;
 
 	// localize tag presets (categories are displayed in both english and localized because manual
 	// tag entry still needs to be typed in english)
-	for (int i=0; i<sizeof(g_mnuTagPresets)/sizeof(g_mnuTagPresets[0]); i++)
+	for (unsigned int i=0; i<sizeof(g_mnuTagPresets)/sizeof(g_mnuTagPresets[0]); i++)
 	{
 		if (!g_tagPresetsEnglish[i])
 			continue;
@@ -12783,7 +12934,7 @@ static void CleanupLocalization()
 {
 #ifdef LOCALIZATION_SUPPORT
 	// delete any localization specific allocs
-	for (int i=0; i<sizeof(g_tagPresetsExtraAllocated)/sizeof(g_tagPresetsExtraAllocated[0]); i++)
+	for (unsigned int i=0; i<sizeof(g_tagPresetsExtraAllocated)/sizeof(g_tagPresetsExtraAllocated[0]); i++)
 	{
 		if (g_tagPresetsExtraAllocated[i])
 		{
@@ -12802,7 +12953,7 @@ static void CleanupLocalization()
 
 extern "C" int FMSELAPI SelectFM(sFMSelectorData *data)
 {
-	if (!data || data->nStructSize < sizeof(sFMSelectorData))
+	if (!data || (unsigned int)data->nStructSize < sizeof(sFMSelectorData))
 	{
 		return kSelFMRet_Cancel;
 	}

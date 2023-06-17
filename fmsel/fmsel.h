@@ -22,7 +22,7 @@
 #ifdef _WIN32
 #define FMSELLIB "fmsel.dll"
 #else
-#define FMSELLIB "fmsel.so"
+#define FMSELLIB "libfmsel.so"
 #endif
 
 
@@ -98,6 +98,9 @@ typedef enum eFMSelReturn
 } eFMSelReturn;
 
 
-extern "C" int FMSELAPI SelectFM(sFMSelectorData *data);
+#ifdef __cplusplus
+extern "C"
+#endif
+int FMSELAPI SelectFM(sFMSelectorData *data);
 
 #endif // _FMSEL_H_

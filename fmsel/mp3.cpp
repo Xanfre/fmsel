@@ -10,7 +10,11 @@
  * FMSel.
  */
 
+#ifdef _WIN32
 #include <io.h>
+#else
+#define _strnicmp strncasecmp
+#endif
 #include <string.h>
 #include "mp3.h"
 #include "os.h"
@@ -25,7 +29,7 @@
 #include <FL/fl_ask.H>
 
 
-#ifdef OGG_SUPPORT
+#if defined(OGG_SUPPORT) && defined(_MSC_VER)
 #pragma comment(lib, "libogg_static.lib")
 #pragma comment(lib, "libvorbis_static.lib")
 #pragma comment(lib, "libvorbisfile_static.lib")
@@ -98,6 +102,7 @@ bool InitMP3()
 	if (g_hDll)
 		return true;
 
+#ifdef _WIN32
 	// strip extension
 	char dllname[256];
 	strcpy(dllname, MP3LIB);
@@ -106,6 +111,9 @@ bool InitMP3()
 		*ext = 0;
 
 	g_hDll = LoadDynamicLibOS(dllname);
+#else
+	g_hDll = LoadDynamicLibOS(MP3LIB);
+#endif
 	if (!g_hDll)
 		return false;
 

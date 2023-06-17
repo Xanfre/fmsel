@@ -23,7 +23,7 @@
 #ifdef _WIN32
 #define MP3LIB "libmp3lame.dll"
 #else
-#define MP3LIB "libmp3lame.so"
+#define MP3LIB "libmp3lame.so.0"
 #endif
 
 

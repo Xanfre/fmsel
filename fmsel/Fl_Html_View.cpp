@@ -76,6 +76,8 @@
 #  define getcwd _getcwd
 #else
 #  include <unistd.h>
+#  define TRUE true
+#  define FALSE false
 #endif // WIN32
 
 #define MAX_COLUMNS	200
@@ -3242,6 +3244,7 @@ Fl_Html_View::load(const char *f)// I - Filename to load (may also have target)
   char		newname[1024];	// New filename buffer
 
   clear_selection();
+  target = NULL;
 
   strlcpy(newname, f, sizeof(newname));
   if (!include_anchor_to_cb_)
