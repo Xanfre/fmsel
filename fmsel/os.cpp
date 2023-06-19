@@ -24,6 +24,7 @@
 #define strcat_s(a,b,c) strncat(a,c,b-strlen(a)-1)
 #define strcpy_s(a,b,c) memset(a,0,b); strncpy(a,c,b-1);
 #define MAX_PATH PATH_MAX
+#define PREF_PROG "xdg-open"
 #endif
 #include <sys/stat.h>
 #include <FL/Fl.H>
@@ -189,12 +190,7 @@ BOOL OpenFileWithAssociatedApp(const char *path)
 		// exit unless this is the child
 		if (0 != pid)
 			exit(pid > 0 ? 0 : 1);
-		char *argv[3] = { NULL, NULL, NULL };
-		// set the command and get the file path
-		// neither needs to be freed since the heap will be discarded by execvp
-		argv[0] = strdup("xdg-open");
-		argv[1] = strdup(path);
-		if (-1 == execvp(argv[0], argv))
+		if (-1 == execlp(PREF_PROG, PREF_PROG, path, NULL))
 			exit(1);
 	}
 	int status;
@@ -224,12 +220,7 @@ BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser)
 		// exit unless this is the child
 		if (0 != pid)
 			exit(pid > 0 ? 0 : 1);
-		char *argv[3] = { NULL, NULL, NULL };
-		// set the browser and get the file path
-		// neither needs to be freed since the heap will be discarded by execvp
-		argv[0] = strdup(custombrowser);
-		argv[1] = strdup(url);
-		if (-1 == execvp(argv[0], argv))
+		if (-1 == execlp(custombrowser, custombrowser, url, NULL))
 			exit(1);
 	}
 	int status;
