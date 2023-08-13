@@ -16,8 +16,8 @@
 #include <unistd.h>
 #include <sys/statvfs.h>
 #include <sys/wait.h>
-#define TRUE true
-#define FALSE false
+#define TRUE 1
+#define FALSE 0
 #define _utime utime
 #define _utimbuf utimbuf
 #define sprintf_s snprintf
@@ -363,14 +363,12 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 	}
 
 retry:
-	int iFontSize = 0;
-	if (FL_NORMAL_SIZE > 18)
-	{
-		iFontSize = FL_NORMAL_SIZE;
+	int iFontSize = FL_NORMAL_SIZE;
+	BOOL bChangeFont = iFontSize > 18;
+	if (bChangeFont)
 		FL_NORMAL_SIZE = 18;
-	}
 	const char *s = fl_file_chooser(title, filter, initial_);
-	if (iFontSize != 0)
+	if (bChangeFont)
 		FL_NORMAL_SIZE = iFontSize;
 	if (!s)
 		return FALSE;

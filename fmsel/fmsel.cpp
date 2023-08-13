@@ -39,7 +39,7 @@
 #define _strnicmp strncasecmp
 #define _strdup strdup
 #define _strtoui64 strtoull
-#define _snprintf_s(a,b,c,...) snprintf(a,b,__VA_ARGS__)
+#define _snprintf_s(a,b,c,d,...) snprintf(a,b,d,__VA_ARGS__)
 #define strcat_s(a,b,c) strncat(a,c,b-strlen(a)-1)
 #define _chmod chmod
 #define _mkdir(a) mkdir(a,0755)
@@ -161,6 +161,12 @@ typedef int BOOL;
 #define DIRSEP "/"
 #endif
 
+#if defined(_M_X64) || defined(__amd64__)
+#define ARCHSTR "x86_64 / 64-bit"
+#else
+#define ARCHSTR "x86 / 32-bit"
+#endif
+
 #if defined(WIN32) || defined(__EMX__) && !defined(__CYGWIN__)
 static inline int isdirsep(char c) {return c=='/' || c=='\\';}
 #else
@@ -223,7 +229,7 @@ int strncasecmp_utf_b(const char *s1, const char *s2, int n)
 	return 0;
 }
 
-#ifndef __APPLE__
+#if !defined(__APPLE__) || !defined(SYSTEM_UTF8)
 static string ToUTF(const string &s)
 {
 	if ( !s.length() )
@@ -248,7 +254,7 @@ static string ToUTF(const string &s)
 #define ToUTF(_x) _x
 #endif
 
-#ifndef __APPLE__
+#if !defined(__APPLE__) || !defined(SYSTEM_UTF8)
 static string FromUTF(const string &s)
 {
 	if ( !s.length() )
@@ -275,8 +281,6 @@ static string FromUTF(const string &s)
 
 #define SCALE(_x) _x * scale / 4
 #define SCALECFG(_x) _x * g_cfg.uiscale / 4
-#define REGCLR(_r,_g,_b) Fl::set_color((Fl_Color)c++,_r,_g,_b);
-#define SWPCLR(_x,_y) color = Fl::get_color((Fl_Color)_x); Fl::set_color((Fl_Color)_x,dark_cmap[_y]); dark_cmap[_y++] = color;
 #define DARK() g_cfg.uitheme == 1
 
 
@@ -302,6 +306,9 @@ class Fl_FM_Filter_Button;
 static BOOL g_bDbModified = FALSE;
 static BOOL g_bRunningEditor = FALSE;
 static BOOL g_bRunningShock = FALSE;
+#ifdef SUPPORT_T3
+static BOOL g_bRunningThief3 = FALSE;
+#endif
 
 static eFMSelReturn g_appReturn = kSelFMRet_ExitGame;
 static sFMSelectorData *g_pFMSelData = NULL;
@@ -354,6 +361,9 @@ static void ViewArchiveContents(FMEntry *fm);
 static const char* GenericHtmlTextPopup(const char *caption, const char *text, int W = 600, int maxH = 800);
 static void ViewAbout();
 static string TextToHtml(const char *text);
+#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+static string GlmlToHtml(const char *glml);
+#endif
 
 static int DoImportBatchFmIniDialog();
 
@@ -3293,7 +3303,11 @@ static BOOL ReadModIni(FMEntry *fm, const FMEntry *realfm)
 /////////////////////////////////////////////////////////////////////
 // MISC TASKS
 
+#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+static const char *g_doctypes[] = { "glml", "rtf", "wri", "txt", "html", "htm", "doc", "pdf" };
+#else
 static const char *g_doctypes[] = { "rtf", "wri", "txt", "html", "htm", "doc", "pdf" };
+#endif
 
 struct FileDiffInfo
 {
@@ -3381,6 +3395,7 @@ static void RegDefColors()
 {
 	// register custom colors
 	unsigned int c = 96;
+#define REGCLR(_r,_g,_b) Fl::set_color((Fl_Color)c++,_r,_g,_b);
 	REGCLR(207,227,227);
 	REGCLR(180,180,200);
 	REGCLR(245,245,255);
@@ -3411,12 +3426,14 @@ static void RegDefColors()
 	REGCLR(230,230,230);
 	REGCLR(226,226,217);
 	REGCLR(170,238,255);
+#undef REGCLR
 }
 
 static void ChangeScheme()
 {
 	// swap the necessary parts of the color map
 	unsigned int color, c, i = 0;
+#define SWPCLR(_x,_y) color = Fl::get_color((Fl_Color)_x); Fl::set_color((Fl_Color)_x,dark_cmap[_y]); dark_cmap[_y++] = color;
 	for (c = FL_FOREGROUND_COLOR; c < FL_FOREGROUND_COLOR+16; c++) { SWPCLR(c,i); } // 3-bit colormap
 	for (c = FL_GRAY0; c <= FL_BLACK; c++) { SWPCLR(c,i); } // grayscale ramp and FL_BLACK
 	SWPCLR(FL_RED,i); // FL_RED
@@ -3424,6 +3441,7 @@ static void ChangeScheme()
 	SWPCLR(215,i); // Tooltip background
 	SWPCLR(FL_BLUE,i); // FL_BLUE
 	SWPCLR(FL_WHITE,i); // FL_WHITE
+#undef SWPCLR
 }
 
 
@@ -3556,6 +3574,27 @@ static BOOL FmGetPhysicalFileFromArchive(FMEntry *fm, const char *filename, stri
 	string t = g_sTempDir + s;
 	const char *pErrMsg = NULL;
 
+#ifdef SUPPORT_T3
+	// make the directory first if the filename includes a (single) subdirectory
+	const char *sep;
+	if ((sep = strchr(filename, DIRSEP[0])) != NULL)
+	{
+		const size_t dirlen = sep - filename;
+		char *dir = new char[dirlen + 1];
+
+		if (NULL == dir)
+			return FALSE;
+
+		memcpy(dir, filename, dirlen);
+		dir[dirlen] = '\0';
+		string dirpath = g_sTempDirAbs + dir;
+		delete[] dir;
+
+		if (_mkdir(dirpath.c_str()) && errno != EEXIST)
+			return FALSE;
+	}
+#endif
+
 	if ( !ExtractFileFromArchive(fm->GetArchiveFilePath().c_str(), filename, t.c_str(), &pErrMsg) )
 	{
 		fl_alert($("Failed to extract \"%s\" to \"%s\".\n\nError: %s"), filename, t.c_str(), pErrMsg ? pErrMsg : "unknown error");
@@ -3581,6 +3620,28 @@ static BOOL FmOpenFileWithAssociatedApp(FMEntry *fm, const char *filename)
 		return FALSE;
 
 	char pathname[MAX_PATH_BUF];
+
+#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+	const char *ext = strrchr(filename, '.');
+	if (NULL != ext && !_stricmp(ext, ".glml"))
+	{
+		char *data;
+		int n;
+
+		if ( !FmReadFileToBuffer(fm, filename, data, n) )
+			return FALSE;
+
+		// convert GLML to HTML
+
+		string html = GlmlToHtml(data);
+
+		delete[] data;
+
+		GenericHtmlTextPopup(NULL, html.c_str(), (g_cfg.bLargeFont ? 976 : 800));
+
+		return TRUE;
+	}
+#endif
 
 	if ( !fm->IsInstalled() )
 	{
@@ -4108,13 +4169,28 @@ static BOOL ApplyFmIni(FMEntry *fm, BOOL bFallbackModIni)
 	return TRUE;
 }
 
-
+#ifdef SUPPORT_T3
+static BOOL SetReleaseDateFromFile(FMEntry *fm, const char *fname, time_t tmMin, time_t tmMax, const char *subdir = NULL)
+#else
 static BOOL SetReleaseDateFromFile(FMEntry *fm, const char *fname, time_t tmMin, time_t tmMax)
+#endif
 {
 	char pathname[MAX_PATH_BUF];
 
+#ifdef SUPPORT_T3
+	if (subdir)
+	{
+		if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, subdir, fname) == -1)
+			return FALSE;
+	}
+	else
+	{
+#endif
 	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
 		return FALSE;
+#ifdef SUPPORT_T3
+	}
+#endif
 
 	struct stat st = {0};
 
@@ -4167,7 +4243,11 @@ static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, vector<string> &files, vec
 }
 
 static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, dirent **files, const int nFiles,
-										 const char **filetypes, int nTypes, time_t tmMin, time_t tmMax)
+										 const char **filetypes, int nTypes, time_t tmMin, time_t tmMax
+#ifdef SUPPORT_T3
+									   , const char *subdir = NULL
+#endif
+										 )
 {
 	for (int i=0; i<nFiles; i++)
 	{
@@ -4188,7 +4268,11 @@ static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, dirent **files, const int 
 		// check if extension matches any of the requested ones
 		for (int j=0; j<nTypes; j++)
 		{
+#ifdef SUPPORT_T3
+			if (!_stricmp(ext, filetypes[j]) && SetReleaseDateFromFile(fm, f->d_name, tmMin, tmMax, subdir))
+#else
 			if (!_stricmp(ext, filetypes[j]) && SetReleaseDateFromFile(fm, f->d_name, tmMin, tmMax))
+#endif
 				return TRUE;
 		}
 	}
@@ -4221,7 +4305,11 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 
 	const char *mistypes[] = { "mis" };
 
+#ifdef SUPPORT_T3
+	BOOL bResult = FALSE;
+#else
 	BOOL bResult;
+#endif
 
 	if ( fm->IsInstalled() )
 	{
@@ -4234,10 +4322,51 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 		if (nFiles <= 0)
 			return FALSE;
 
+#ifdef SUPPORT_T3
+		if (g_bRunningThief3)
+		{
+			for (int i=0; i<nFiles; i++)
+			{
+				dirent *f = files[i];
+
+				if (isdirsep(f->d_name[strlen(f->d_name)-1])
+					&& (!_strnicmp(f->d_name, "Fan Mission Extras", 18)
+					|| !_strnicmp(f->d_name, "FanMissionExtras", 16)))
+				{
+					char subdir[19] = {0}; // zero the array
+					memcpy(subdir, f->d_name, tolower(f->d_name[15]) == 's' ? 16 : 18);
+
+					if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, subdir) == -1)
+					{
+						fl_filename_free_list(&files, nFiles);
+						return FALSE;
+					}
+
+					dirent **fmaFiles;
+					int nFmaFiles = fl_filename_list(fname, &fmaFiles, NO_COMP_UTFCONV);
+					if (nFmaFiles <= 0)
+						break;
+
+					bResult = ScanForTypeAndSetReleaseDate(fm, fmaFiles, nFmaFiles, g_doctypes, sizeof(g_doctypes)/sizeof(g_doctypes[0]), tmMin, tmMax, subdir);
+					fl_filename_free_list(&fmaFiles, nFmaFiles);
+
+					break;
+				}
+			}
+		}
+#endif
+
 		// scan for documentation/readme files (txt/rtf/wri/doc/pdf) and use date from that
+#ifdef SUPPORT_T3
+		if (!bResult)
+#endif
 		bResult = ScanForTypeAndSetReleaseDate(fm, files, nFiles, g_doctypes, sizeof(g_doctypes)/sizeof(g_doctypes[0]), tmMin, tmMax);
 
+#ifdef SUPPORT_T3
+		if (!g_bRunningThief3 && !bResult)
+#else
 		if (!bResult)
+#endif
 			// didn't find any documentation files, now scan for *.mis files and use the date from that
 			bResult = ScanForTypeAndSetReleaseDate(fm, files, nFiles, mistypes, sizeof(mistypes)/sizeof(mistypes[0]), tmMin, tmMax);
 
@@ -4251,14 +4380,22 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 		vector<string> files;
 		vector<time_t> ftimes;
 
+#ifdef SUPPORT_T3
+		int nFiles = ListFilesInArchiveRoot(fm->GetArchiveFilePath().c_str(), files, &ftimes, g_bRunningThief3);
+#else
 		int nFiles = ListFilesInArchiveRoot(fm->GetArchiveFilePath().c_str(), files, &ftimes);
+#endif
 		if (nFiles <= 0)
 			return FALSE;
 
 		// scan for documentation/readme files (txt/rtf/wri/doc/pdf) and use date from that
 		bResult = ScanForTypeAndSetReleaseDate(fm, files, ftimes, nFiles, g_doctypes, sizeof(g_doctypes)/sizeof(g_doctypes[0]), tmMin, tmMax);
 
+#ifdef SUPPORT_T3
+		if (!g_bRunningThief3 && !bResult)
+#else
 		if (!bResult)
+#endif
 			// didn't find any documentation files, now scan for *.mis files and use the date from that
 			bResult = ScanForTypeAndSetReleaseDate(fm, files, ftimes, nFiles, mistypes, sizeof(mistypes)/sizeof(mistypes[0]), tmMin, tmMax);
 	}
@@ -4421,7 +4558,7 @@ static char* strcpy_safe(char *_Dst, rsize_t _SizeInBytes, const char *_Src)
 {
 	if (_SizeInBytes > 0)
 	{
-		rsize_t len = strlen(_Src);
+		const rsize_t len = strlen(_Src);
 		char *r = strncpy(_Dst, _Src, _SizeInBytes-1);
 		_Dst[_SizeInBytes > len ? len : _SizeInBytes-1] = '\0';
 		return r;
@@ -4437,6 +4574,12 @@ static int GetFileScore(const char *s)
 
 	int score = GetTypeScore(ext);
 
+#ifdef SUPPORT_T3
+	// is in "Fan Mission Extras" or "FanMissionExtras"
+	if ( g_bRunningThief3
+		&& (!_strnicmp(s, "Fan Mission Extras", 18) || !_strnicmp(s, "FanMissionExtras", 16)) )
+		score += 9000;
+#endif
 	// starts with "fminfo"
 	if ( !_strnicmp(s, "fminfo", 6) )
 	{
@@ -4497,7 +4640,11 @@ static BOOL GetDocFilesFromArch(FMEntry *fm, vector<string> &list)
 	int i;
 	vector<string> files;
 
+#ifdef SUPPORT_T3
+	int nFiles = ListFilesInArchiveRoot(fm->GetArchiveFilePath().c_str(), files, NULL, g_bRunningThief3);
+#else
 	int nFiles = ListFilesInArchiveRoot(fm->GetArchiveFilePath().c_str(), files);
+#endif
 	if (nFiles <= 0)
 		return FALSE;
 
@@ -4567,6 +4714,67 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 	vector<const char *> tmplist;
 	tmplist.reserve(16);
 
+#ifdef SUPPORT_T3
+	dirent **fmaFiles = NULL;
+	int nFmaFiles = 0;
+	int fmaDocs = 0;
+	char subdir[19] = {0}; // zero the array
+
+	if (g_bRunningThief3)
+	{
+		for (i=0; i<nFiles; i++)
+		{
+			dirent *f = files[i];
+
+			if (isdirsep(f->d_name[strlen(f->d_name)-1])
+				&& (!_strnicmp(f->d_name, "Fan Mission Extras", 18)
+				|| !_strnicmp(f->d_name, "FanMissionExtras", 16)))
+			{
+				memcpy(subdir, f->d_name, tolower(f->d_name[15]) == 's' ? 16 : 18);
+
+				if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, subdir) == -1)
+				{
+					fl_filename_free_list(&files, nFiles);
+					return FALSE;
+				}
+
+				nFmaFiles = fl_filename_list(fname, &fmaFiles, NO_COMP_UTFCONV);
+				if (nFmaFiles <= 0)
+					break;
+
+				for (int j=0; j<nFmaFiles; j++)
+				{
+					dirent *fmaF = fmaFiles[i];
+
+					// skip dirs
+					int len = strlen(fmaF->d_name);
+					if ( isdirsep(fmaF->d_name[len-1]) )
+						continue;
+
+					// get extension
+					while (len && fmaF->d_name[len] != '.' && !isdirsep(fmaF->d_name[len])) len--;
+					if (fmaF->d_name[len] != '.' || !fmaF->d_name[len+1])
+						continue;
+
+					const char *ext = fmaF->d_name + len + 1;
+
+					// check if extension matches any of the requested ones
+					for (int k=0; k<nTypes; k++)
+					{
+						if ( !_stricmp(ext, g_doctypes[k]) )
+						{
+							tmplist.push_back(fmaF->d_name);
+							fmaDocs++;
+						}
+					}
+				}
+
+				break;
+			}
+		}
+	}
+#endif
+
 	for (i=0; i<nFiles; i++)
 	{
 		dirent *f = files[i];
@@ -4590,16 +4798,45 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 	}
 
 	if (tmplist.size() > 1)
+#ifdef SUPPORT_T3
+	{
+		if (fmaDocs > 0)
+		{
+			// sort files so most likely info file is first
+			// keep FMA files in front of the others
+			std::sort(tmplist.begin(), tmplist.begin()+fmaDocs-1, compare_docfiles);
+			std::sort(tmplist.begin()+fmaDocs, tmplist.end(), compare_docfiles);
+		}
+		else
+#endif
 		// sort files so most likely info file is first
 		std::sort(tmplist.begin(), tmplist.end(), compare_docfiles);
+#ifdef SUPPORT_T3
+	}
+#endif
 
 	// copy temp list to 'list'
 	list.reserve( tmplist.size() );
 	for (i=0; i<(int)tmplist.size(); i++)
+	{
+#ifdef SUPPORT_T3
+		if (i < fmaDocs)
+		{
+			list.push_back(subdir);
+			list.back().append(DIRSEP);
+			list.back().append(tmplist[i]);
+		}
+		else
+#endif
 		list.push_back(tmplist[i]);
+	}
 
 	// free data
 	fl_filename_free_list(&files, nFiles);
+#ifdef SUPPORT_T3
+	if (NULL != fmaFiles && nFmaFiles > 0)
+		fl_filename_free_list(&fmaFiles, nFmaFiles);
+#endif
 
 	return !list.empty();
 }
@@ -4895,7 +5132,11 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 	// TODO: a progress dialog for this might be nice (we'd have to enumerate all files in advances, so we know
 	//       the filecount, and then do archiving in a thread
 
+#ifdef SUPPORT_T3
+	if (!g_bRunningShock && !g_bRunningThief3)
+#else
 	if (!g_bRunningShock)
+#endif
 	{
 		// not necessary, it's only an internal temp file for thief (it gets created each time a savegame is loaded
 		// or a mission is started)
@@ -4909,6 +5150,9 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 	}
 
 	// shock saves "save_*" and also "saves_*" for potential future thief multiplayer saves
+#ifdef SUPPORT_T3
+	if (!g_bRunningThief3)
+#endif
 	{
 	char fname[MAX_PATH_BUF];
 	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
@@ -4944,7 +5188,14 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 	}
 
 	// screenshots
+#ifdef SUPPORT_T3
+	if (!g_bRunningThief3 && !BackupOptDirToArchive(fm, "screenshots"))
+		goto abort;
+
+	if (g_bRunningThief3 && (!BackupOptDirToArchive(fm, "SaveGames") || !BackupOptDirToArchive(fm, "ScreenShots")))
+#else
 	if ( !BackupOptDirToArchive(fm, "screenshots") )
+#endif
 		goto abort;
 
 	if ( g_backupList.empty() )
@@ -5824,10 +6075,17 @@ static BOOL InstallFM(FMEntry *fm)
 	std::list<string> compressedSndFiles[2];
 	std::list<string> &mp3files = compressedSndFiles[0];
 	std::list<string> &oggfiles = compressedSndFiles[1];
+#ifdef SUPPORT_T3
+	if (!g_bRunningThief3)
+	{
+#endif
 #ifdef OGG_SUPPORT
 	EnumFullArchive(archivepath.c_str(), g_cfg.bDecompressOGG ? EnumMP3OGGFiles : EnumMP3Files, &compressedSndFiles[0]);
 #else
 	EnumFullArchive(archivepath.c_str(), EnumMP3Files, &compressedSndFiles[0]);
+#endif
+#ifdef SUPPORT_T3
+	}
 #endif
 
 	BOOL bSupportsMP3 = FALSE;
@@ -5944,7 +6202,11 @@ static BOOL InstallFM(FMEntry *fm)
 	}
 
 	// generate Thief mission flags
-	if (g_cfg.bGenerateMissFlags && !g_bRunningShock)
+#ifdef SUPPORT_T3
+	if (!g_bRunningShock && !g_bRunningThief3 && g_cfg.bGenerateMissFlags)
+#else
+	if (!g_bRunningShock && g_cfg.bGenerateMissFlags)
+#endif
 		CheckMissionFlags(tmpdir.c_str());
 
 	// restore savegames/screenshots
@@ -6087,6 +6349,10 @@ static bool ClearIdenticalEnumeratedArchiveFile(const char *fname, unsigned __in
 	}
 	else
 	{
+#ifdef SUPPORT_T3
+		if (!g_bRunningThief3)
+		{
+#endif
 		// if mp3 or ogg file then check if wav file exists with same name
 		const int n = strlen(fname);
 		if (n > 4 && (!_stricmp(fname+n-4, ".mp3") || !_stricmp(fname+n-4, ".ogg")))
@@ -6109,6 +6375,9 @@ static bool ClearIdenticalEnumeratedArchiveFile(const char *fname, unsigned __in
 				return true;
 			}
 		}
+#ifdef SUPPORT_T3
+		}
+#endif
 
 		// file was deleted from install
 		g_removedFiles.push_back(fname);
@@ -6202,7 +6471,11 @@ static BOOL UninstallFM(FMEntry *fm)
 				// remove install info from backup set
 				ClearDiffInfoFileEntry("fmsel.inf");
 				// remove thief checkpoint save
+#ifdef SUPPORT_T3
+				if (!g_bRunningShock && !g_bRunningThief3)
+#else
 				if (!g_bRunningShock)
+#endif
 					ClearDiffInfoFileEntry("startmis.sav");
 
 				// backup all files remaining in g_fileDiffInfoMap
@@ -6830,12 +7103,24 @@ public:
 			MENU_RITEM($("Only Saves and Shots"), CMD_BackupSaves, !g_cfg.bDiffBackups);
 			MENU_RITEM($("All Changed Files"), CMD_BackupDiff, g_cfg.bDiffBackups);
 			MENU_END();
+#ifdef SUPPORT_T3
+#ifdef OGG_SUPPORT
+		if (!g_bRunningThief3)
+#else
+		if (!g_bRunningShock || !g_bRunningThief3)
+#endif
+#elif !defined(OGG_SUPPORT)
+		if (!g_bRunningShock)
+#endif
+		{
 		MENU_SUB($("Install Options")); MENU_MOD_DISABLE(!g_cfg.bRepoOK); MENU_MOD_DIV();
 #ifdef OGG_SUPPORT
 			MENU_TITEM($("Convert OGG to WAV"), CMD_ConvertOgg, g_cfg.bDecompressOGG);
+			if (!g_bRunningShock)
 #endif
 			MENU_TITEM($("Generate Mission Flags"), CMD_GenerateMissFlags, g_cfg.bGenerateMissFlags);
 			MENU_END();
+		}
 		MENU_SUB($("Tasks")); MENU_MOD_DIV();
 			MENU_ITEM($("Auto-fill Release Dates"), CMD_AutoScanDates);
 			MENU_MOD_DIV();
@@ -8966,11 +9251,7 @@ public:
 		while (!m_bDone)
 		{
 			Fl_Widget *o = Fl::readqueue();
-#ifdef _WIN32
 			if (!o) Fl::wait();
-#else
-			if (!o) Fl::wait(0);
-#endif
 		}
 
 		Fl::release();
@@ -10124,6 +10405,132 @@ static string EscapedTextToHtml(const char *text)
 	return d;
 }
 
+#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+static string GlmlToHtml(const char *glml)
+{
+	string html;
+	const size_t glmlLen = strlen(glml);
+	char tag[16] = {0};
+	char subTag[16] = {0}; // needs to be same size as tag
+	html.reserve(glmlLen + 1);
+	for (size_t i = 0; i < glmlLen; i++)
+	{
+		char c = glml[i];
+		if (c == '[')
+		{
+			// opening tags
+			if (i < glmlLen - 5 && !strncmp(&glml[i + 1], "GL", 2))
+			{
+				*subTag = '\0';
+				for (size_t j = i + 3; j < std::min(i + 33, glmlLen); j++)
+				{
+					if (glml[j] == ']')
+					{
+						strcpy(tag, subTag);
+						if (!strcmp(tag, "TITLE"))
+							html.append("<h1>");
+						else if (!strcmp(tag, "SUBTITLE"))
+							html.append("<h2>");
+						else if (!strcmp(tag, "CENTER"))
+							html.append("<center>");
+						else if (!strcmp(tag, "WARNINGS"))
+							html.append("<b>");
+						// needed to make language tags look nice
+						else if (!strcmp(tag, "LANGUAGE"))
+							html.append("<p>");
+						else if (!strcmp(tag, "NL"))
+							html.append("<br>");
+						// include two breaks to properly format horizontal
+						// lines
+						else if (!strcmp(tag, "LINE"))
+							html.append("<hr><br><br>");
+						else
+						{
+							size_t tagLen = strlen(tag);
+							size_t k;
+							for (k = 0; k < strlen(tag); k++)
+							{
+								if (!isalpha(tag[k]) || !isupper(tag[k]))
+									break;
+							}
+							if (k != tagLen)
+							{
+								html.append("[GL");
+								html.append(subTag);
+								html.append("]");
+							}
+						}
+						i = j;
+						break;
+					}
+					else if (strlen(subTag) < sizeof(subTag) - 1)
+					{
+						const size_t subTagLen = strlen(subTag);
+						subTag[subTagLen] = glml[j];
+						subTag[subTagLen + 1] = '\0';
+					}
+				}
+			}
+			// closing tags
+			else if (i < glmlLen - 6 && !strncmp(&glml[i + 1], "/GL", 3))
+			{
+				*subTag = '\0';
+				for (size_t j = i + 4; j < std::min(i + 34, glmlLen); j++)
+				{
+					if (glml[j] == ']')
+					{
+						strcpy(tag, subTag);
+						if (!strcmp(tag, "TITLE"))
+							html.append("</h1>");
+						else if (!strcmp(tag, "SUBTITLE"))
+							html.append("</h2>");
+						else if (!strcmp(tag, "CENTER"))
+							html.append("</center>");
+						else if (!strcmp(tag, "WARNINGS"))
+							html.append("</b>");
+						// needed to make language tags look nice.
+						else if (!strcmp(tag, "LANGUAGE"))
+							html.append("</p>");
+						else
+						{
+							size_t tagLen = strlen(tag);
+							size_t k;
+							for (k = 0; k < strlen(tag); k++)
+							{
+								if (!isalpha(tag[k]) || !isupper(tag[k]))
+									break;
+							}
+							if (k != tagLen)
+							{
+								html.append("[/GL");
+								html.append(subTag);
+								html.append("]");
+							}
+						}
+						i = j;
+						break;
+					}
+					else if (strlen(subTag) < sizeof(subTag) - 1)
+					{
+						const size_t subTagLen = strlen(subTag);
+						subTag[subTagLen] = glml[j];
+						subTag[subTagLen + 1] = '\0';
+					}
+				}
+			}
+			else
+				html.append("[");
+		}
+		else
+			html.push_back(c);
+	}
+#ifndef _MSC_VER
+	html.shrink_to_fit();
+#endif
+	return html;
+}
+#endif
+
 static string GenerateHtmlSummary(FMEntry *fm)
 {
 	string html;
@@ -10515,6 +10922,9 @@ static const char* GenericHtmlTextPopup(const char *caption, const char *html_bo
 	if (!html_body)
 		return NULL;
 
+	W = SCALECFG(W);
+	maxH = SCALECFG(maxH);
+
 	int X = 0;
 	int Y = 0;
 	int H = pMainWnd->h() - 40;
@@ -10584,7 +10994,7 @@ static void ViewAbout()
 
 		"<center><font color=\"%s\"><hr></font></center>"
 
-		"%s <b>" MP3LIB "</b> (x86 / 32-bit) %s " FMSELLIB ".<br>" // $("To enable support for MP3 to WAV conversion during FM install, you must download"), $("and put it in the same directory as")
+		"%s <b>" MP3LIB "</b> (" ARCHSTR ") %s " FMSELLIB ".<br>" // $("To enable support for MP3 to WAV conversion during FM install, you must download"), $("and put it in the same directory as")
 		"<br>"
 		"%s<br>" // $("Links for binary downloads of the LAME MP3 library can be found on:")
 		"<a href=\"https://lame.sourceforge.net/links.php#Binaries\"><b>https://lame.sourceforge.net/links.php#Binaries</b></a><br>"
@@ -10615,7 +11025,11 @@ static void ViewAbout()
 		"<a href=\"https://xiph.org/vorbis/\"><b>https://xiph.org/vorbis/</b></a>"
 #endif
 
+#ifdef SUPPORT_T3
+		, $("FM selector and manager for dark engine games and Thief 3.")
+#else
 		, $("FM selector and manager for dark engine games.")
+#endif
 		, DARK() ? "#376189" : "#719DC8"
 		, $("To enable support for MP3 to WAV conversion during FM install, you must download")
 		, $("and put it in the same directory as")
@@ -10635,7 +11049,7 @@ static void ViewAbout()
 
 	html.append(msg);
 
-	GenericHtmlTextPopup($("About"), html.c_str(), SCALECFG((g_cfg.bLargeFont ? 610 : 500)), SCALECFG((g_cfg.bLargeFont ? 610 : 500)));
+	GenericHtmlTextPopup($("About"), html.c_str(), (g_cfg.bLargeFont ? 610 : 500), (g_cfg.bLargeFont ? 610 : 500));
 }
 
 
@@ -10857,7 +11271,7 @@ retry:
 
 static int DoImportBatchFmIniDialog()
 {
-	Fl_Window *w = new Fl_Double_Window(280, 320, $("Import Batch FM.INI"));
+	Fl_Window *w = new Fl_Double_Window(SCALECFG(280), SCALECFG(320), $("Import Batch FM.INI"));
 	ASSERT(w != NULL);
 	if (!w)
 		return 0;
@@ -10900,7 +11314,7 @@ static int DoImportBatchFmIniDialog()
 
 	int X = 10;
 	int Y = 10;
-	int W = 130;
+	int W = SCALECFG(130);
 	int H = FL_NORMAL_SIZE + 6;
 
 	fl_font(FL_HELVETICA, FL_NORMAL_SIZE);
@@ -10966,8 +11380,8 @@ static int DoImportBatchFmIniDialog()
 
 	//
 
-	W = 80;
-	H = 25;
+	W = SCALECFG(80);
+	H = SCALECFG(25);
 	X = w->w() - W - 10;
 	Y = w->h() - H - 10;
 
@@ -11017,11 +11431,7 @@ static int DoImportBatchFmIniDialog()
 			}
 		}
 
-#ifdef _WIN32
 		if (!o) Fl::wait();
-#else
-		if (!o) Fl::wait(0);
-#endif
 	}
 
 	if (bOK)
@@ -11163,7 +11573,8 @@ int RunProgress()
 #ifdef _WIN32
 		if (!o) Fl::wait();
 #else
-		if (!o) Fl::wait(0);
+		// pump messages to keep progress bar responsive
+		if (!o) Fl::wait(50.0/1000.0);
 #endif
 	}
 
@@ -11180,7 +11591,7 @@ void InitProgress(int nSteps, const char *label)
 		return;
 	}
 
-	Fl_Window *w = g_pProgressDlg = new Fl_FM_Progress_Window(250, 40);
+	Fl_Window *w = g_pProgressDlg = new Fl_FM_Progress_Window(SCALECFG(250), SCALECFG(40));
 	ASSERT(w != NULL);
 	if (!w)
 		return;
@@ -11907,6 +12318,11 @@ static void InitTagEdDialog(Fl_Window *pDlg, FMEntry *fm)
 		pTagEdModExclude->deactivate();
 		pTagEdNotes->deactivate();
 	}
+
+#ifdef SUPPORT_T3
+	if (g_bRunningThief3)
+		pTagEdModExclude->deactivate();
+#endif
 }
 
 static void DoTagEditor(FMEntry *fm, int page)
@@ -11940,11 +12356,7 @@ static void DoTagEditor(FMEntry *fm, int page)
 	while ( pDlg->visible() )
 	{
 		Fl_Widget *o = Fl::readqueue();
-#ifdef _WIN32
 		if (!o) Fl::wait();
-#else
-		if (!o) Fl::wait(0);
-#endif
 	}
 
 	delete (Fl_Widget*)pDlg;
@@ -12178,6 +12590,10 @@ static void PlayFM(BOOL bSetInProgress)
 	// if g_pFMSelData->sLanguage is set it means that "fm_language" was defined in a config file, if that's the case
 	// it's treated like a forced FM language setting (mainly to allow FM authors to have an easy way to force different
 	// languages without having to change dark's language setting), it's ignored if not supported by the FM
+#ifdef SUPPORT_T3
+	if (!g_bRunningThief3)
+	{
+#endif
 	if (*g_pFMSelData->sLanguage)
 	{
 		// check if the requested language is supported by the FM
@@ -12206,12 +12622,19 @@ static void PlayFM(BOOL bSetInProgress)
 			*g_pFMSelData->sLanguage = 0;
 		g_pFMSelData->bForceLanguage = FALSE;
 	}
+#ifdef SUPPORT_T3
+	}
+#endif
 
 	fm->OnStart(bSetInProgress);
 
 	strcpy_safe(g_pFMSelData->sName, g_pFMSelData->nMaxNameLen, fm->name);
 
+#ifdef SUPPORT_T3
+	if ( !fm->modexclude.empty() && !g_bRunningThief3 )
+#else
 	if ( !fm->modexclude.empty() )
+#endif
 		strcpy_safe(g_pFMSelData->sModExcludePaths, g_pFMSelData->nMaxModExcludeLen, fm->modexclude.c_str());
 
 	g_pFMSelData->bRunAfterGame = (g_cfg.returnAfterGame[g_bRunningEditor] != RET_NEVER);
@@ -12439,7 +12862,8 @@ static void InitMainWnd()
 	}
 
 	// set proper list header size
-	if (g_cfg.uiscale != 4) pFMList->col_header_height(SCALECFG(pFMList->col_header_height()));
+	if (g_cfg.uiscale != 4)
+		pFMList->col_header_height(SCALECFG(pFMList->col_header_height()));
 
 	// do OS specific init of main window
 	MainWndInitOS(pMainWnd);
@@ -12659,7 +13083,7 @@ static void fl_radio_measure(const Fl_Label* o, int& W, int& H)
 		H = imgMenuRadio.h();
 }
 
-// this is a stripped down version of fl_register_images() that rgisters the jpeg image type reduce dll bloat
+// this is a stripped down version of fl_register_images() that registers the jpeg image type reduce dll bloat
 static Fl_Image *fl_check_images_jpeg(const char *name, uchar *header, int)
 {
 	if (memcmp(header, "\377\330\377", 3) == 0 && header[3] >= 0xc0 && header[3] <= 0xef)
@@ -12685,12 +13109,14 @@ static void draw_flatmarginbox(int x, int y, int w, int h, Fl_Color c)
 
 static void InitMenuDef(Fl_Menu_Item *menu, int count)
 {
-	if (FL_NORMAL_SIZE == 12)
+	int iDefFontSize = SCALECFG(12);
+
+	if (FL_NORMAL_SIZE == iDefFontSize)
 		return;
 
 	for (int i=0; i<count; i++)
 	{
-		if (menu->label() && menu->labelsize() == 12)
+		if (menu->label() && menu->labelsize() == iDefFontSize)
 			menu->labelsize(FL_NORMAL_SIZE);
 
 		menu++;
@@ -12844,14 +13270,14 @@ Fl_Window *g_pStartupWnd = NULL;
 // display message window that fmsel is scanning FMs which may take a little while
 static void ShowStartupMessage()
 {
-	Fl_Window *w = g_pStartupWnd = new Fl_FM_Progress_Window(250, 40, "");
+	Fl_Window *w = g_pStartupWnd = new Fl_FM_Progress_Window(SCALECFG(250), SCALECFG(40), "");
 	w->clear_border();
 	w->box(FL_NO_BOX);
 
 	Fl_Box *o = new Fl_Box(0, 0, w->w(), w->h());
 	o->box(FL_UP_BOX);
 	o->labelfont(FL_HELVETICA_BOLD);
-	o->labelsize(12);
+	o->labelsize(SCALECFG(12));
 	o->align(FL_ALIGN_CENTER);
 	o->label($("Scanning FMs..."));
 
@@ -12963,6 +13389,9 @@ extern "C" int FMSELAPI SelectFM(sFMSelectorData *data)
 
 	g_bRunningEditor = (data->sGameVersion && *data->sGameVersion) && !strncmp(data->sGameVersion, "DromEd", 6);
 	g_bRunningShock = (data->sGameVersion && *data->sGameVersion) && strstr(data->sGameVersion, "Shock");
+#ifdef SUPPORT_T3
+	g_bRunningThief3 = !g_bRunningEditor && !g_bRunningShock && (data->sGameVersion && *data->sGameVersion) && !strncmp(data->sGameVersion, "Thief 3", 7);
+#endif
 
 	PrepareLocalization();
 

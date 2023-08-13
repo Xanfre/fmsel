@@ -38,11 +38,12 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <cstring>
-#define TRUE true
-#define FALSE false
+#define TRUE 1
+#define FALSE 0
 #define _stricmp strcasecmp
 #define _mkdir(a) mkdir(a,0755)
 #define _wcsicmp wcscasecmp
+#define _wcsnicmp wcsncasecmp
 #define MAX_PATH PATH_MAX
 #define max(a,b) (((a)>(b))?(a):(b))
 #endif
@@ -1118,7 +1119,11 @@ bool GetUnpackedArchiveSize(const char *archive, unsigned __int64 &sz, unsigned 
 	return ret;
 }
 
+#ifdef SUPPORT_T3
+int ListFilesInArchiveRoot(const char *archive, std::vector<std::string> &list, std::vector<time_t> *timestamps, BOOL incfma)
+#else
 int ListFilesInArchiveRoot(const char *archive, std::vector<std::string> &list, std::vector<time_t> *timestamps)
+#endif
 {
 	if ( !InitArchiveLib() )
 		return -2;
@@ -1159,9 +1164,26 @@ int ListFilesInArchiveRoot(const char *archive, std::vector<std::string> &list, 
 
 		itempath = pArchiveItem->GetFullPath();
 
+#ifdef SUPPORT_T3
+		// skip files not in root except those in Fan Mission Extras or FanMissionExtras
+		const size_t dirsep = itempath.find_first_of(L"/\\");
+		if (dirsep != wstring::npos)
+		{
+			if (!incfma)
+				continue;
+
+			if (itempath.find_first_of(L"/\\", dirsep + 1) != wstring::npos
+				|| !((!_wcsnicmp(itempath.c_str(), L"Fan Mission Extras", 18)
+				&& dirsep == 18)
+				|| (!_wcsnicmp(itempath.c_str(), L"FanMissionExtras", 16)
+				&& dirsep == 16)))
+				continue;
+		}
+#else
 		// skip files not in root
 		if (itempath.find_first_of(L"/\\") != wstring::npos)
 			continue;
+#endif
 
 		// convert filename from wstring to string
 		std::string s = w2s(itempath);
