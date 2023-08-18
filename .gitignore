@@ -1,7 +1,10 @@
 Release
 Debug
 fmsel/objs
-fmsel/fmsel.dll
+fmsel/*.dll
+fmsel/fmsel.exe
+fmsel/*.so*
+fmsel/fmsel
 *.ncb
 *.suo
 *.user

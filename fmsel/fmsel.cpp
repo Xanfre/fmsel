@@ -161,12 +161,6 @@ typedef int BOOL;
 #define DIRSEP "/"
 #endif
 
-#if defined(_M_X64) || defined(__amd64__)
-#define ARCHSTR "x86_64 / 64-bit"
-#else
-#define ARCHSTR "x86 / 32-bit"
-#endif
-
 #if defined(WIN32) || defined(__EMX__) && !defined(__CYGWIN__)
 static inline int isdirsep(char c) {return c=='/' || c=='\\';}
 #else
@@ -183,12 +177,6 @@ static inline int isdirsep(char c) {return c=='/' || c=='\\';}
 #define ALIGN_NO_DRAW 0
 #define fl_filename_absolute_ex(a, b, c, d) fl_filename_absolute(a, b, c)
 #define fl_filename_isdir_ex(a, b) fl_filename_isdir(a)
-#endif
-
-#ifdef _MSC_VER
-#define DATFMT "I64X"
-#else
-#define DATFMT "lX"
 #endif
 
 static int tolower_utf(const char *str, int len, char *buf)
@@ -1501,6 +1489,12 @@ public:
 		return FALSE;
 	}
 
+#ifdef _MSC_VER
+#define DATFMT "I64X"
+#else
+#define DATFMT "lX"
+#endif
+
 	// write subset of vals relevant for FM.INI (enforce DOS linebreaks for fm.ini, file opened in binary mode)
 	BOOL WriteIni(FILE *f)
 	{
@@ -1533,6 +1527,8 @@ public:
 
 		return !ferror(f);
 	}
+
+#undef DATFMT
 
 	BOOL ParseVal(const char *valname, char *val)
 	{
@@ -10994,7 +10990,13 @@ static void ViewAbout()
 
 		"<center><font color=\"%s\"><hr></font></center>"
 
+#if defined(_M_X64) || defined(__amd64__)
+#define ARCHSTR "x86_64 / 64-bit"
+#else
+#define ARCHSTR "x86 / 32-bit"
+#endif
 		"%s <b>" MP3LIB "</b> (" ARCHSTR ") %s " FMSELLIB ".<br>" // $("To enable support for MP3 to WAV conversion during FM install, you must download"), $("and put it in the same directory as")
+#undef ARCHSTR
 		"<br>"
 		"%s<br>" // $("Links for binary downloads of the LAME MP3 library can be found on:")
 		"<a href=\"https://lame.sourceforge.net/links.php#Binaries\"><b>https://lame.sourceforge.net/links.php#Binaries</b></a><br>"
