@@ -6,11 +6,16 @@
  * the FMSel data structure, invoking FMSel itself, and processing the modified
  * data. However, it also serves as a utility to allow outside programs (e.g.
  * Wine) to interact with FMSel transparently, even being able to receive
- * the modified data contents through a pipe on some operating systems.
+ * the modified data contents through a pipe.
  */
 
 #ifdef _WIN32
 #include <direct.h>
+#define WIN32_LEAN_AND_MEAN
+#define NOSERVICE
+#define NOMCX
+#define NOIMM
+#include <windows.h>
 #define getcwd _getcwd
 #else
 #define _POSIX_C_SOURCE 1
@@ -36,7 +41,9 @@ int StartFMSel(const char *game, const char *rootPath, const char *lang,
 	const char *exited, const int rootLen, const int nameLen,
 	const int modExcludeLen, const int langLen, const int pipePID);
 void ShowError(const char *message, const int fatal);
-#ifndef _WIN32
+#ifdef _WIN32
+void WriteDataToPipe(const sFMSelectorData *data, const HANDLE pipePID);
+#else
 void WriteDataToPipe(const sFMSelectorData *data, const int pipePID);
 #endif
 
@@ -155,7 +162,6 @@ void ShowError(const char *message, const int fatal)
 	printf(" %s\n", message);
 }
 
-#ifndef _WIN32
 /*
  * WriteDataToPipe:
  * Write the relevant (non-constant) data in the sFMSelectorData structure
@@ -163,7 +169,11 @@ void ShowError(const char *message, const int fatal)
  * The write end of the pipe is specified by pipePID and the read end should
  * be closed prior to program invocation.
  */
+#ifdef _WIN32
+void WriteDataToPipe(const sFMSelectorData *data, const HANDLE pipePID)
+#else
 void WriteDataToPipe(const sFMSelectorData *data, const int pipePID)
+#endif
 {
 	const size_t bufSize = data->nMaxRootLen + data->nMaxNameLen
 		+ data->nMaxModExcludeLen + data->nLanguageLen + (3 * sizeof(int));
@@ -184,14 +194,23 @@ void WriteDataToPipe(const sFMSelectorData *data, const int pipePID)
 		*((int *) bufPtr) = data->bRunAfterGame;
 		bufPtr += sizeof(int);
 		*((int *) bufPtr) = data->bForceLanguage;
+#ifdef _WIN32
+		DWORD bytesWritten;
+		if (!WriteFile(pipePID, buf, bufSize, &bytesWritten, NULL)
+			|| bufSize != bytesWritten)
+#else
 		if (bufSize != (size_t) write(pipePID, buf, bufSize))
+#endif
 			ShowError("Full data not written to pipe.", FMSEL_L_ERR_WARN);
 		free(buf);
 	}
 	else
 		ShowError("Could not allocate output buffer.", FMSEL_L_ERR_WARN);
+#ifdef _WIN32
+	if (!CloseHandle(pipePID))
+#else
 	if (-1 == close(pipePID))
+#endif
 		ShowError("Could not close write end of pipe.", FMSEL_L_ERR_WARN);
 }
-#endif
 
