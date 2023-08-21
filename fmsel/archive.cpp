@@ -288,7 +288,7 @@ public:
 	{
 #ifdef _WIN32
 		m_pFile = CreateFileW(fileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-#elif defined (__unix__)
+#elif defined(__unix__) || defined(__UNIX__)
 		wstring wFileName(fileName);
 		m_pFile = fopen(w2s(wFileName).c_str(), "wb");
 #else
@@ -311,7 +311,7 @@ public:
 
 #ifdef _WIN32
 		m_pFile = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-#elif defined(__unix__)
+#elif defined(__unix__) || defined(__UNIX__)
 		std::string stmp = w2s(tmp);
 		m_pFile = fopen(stmp.c_str(), "wb");
 #else
@@ -331,7 +331,7 @@ public:
 				&& CreateAllSubDirsW((wchar_t*)tmp.c_str(), wdest.length(), wdest.length()+pos))
 #ifdef _WIN32
 				m_pFile = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-#elif defined(__unix__)
+#elif defined(__unix__) || defined(__UNIX__)
 				m_pFile = fopen(stmp.c_str(), "wb");
 #else
 				m_pFile = _wfopen(tmp.c_str(), L"wb");
@@ -357,7 +357,7 @@ public:
 #else
 				fflush(m_pFile);
 
-#ifdef __unix__
+#if defined(__unix__) || defined(__UNIX__)
 				struct timespec ts[2];
 				ts[0].tv_sec = m_tmFiletime;
 				ts[0].tv_nsec = 0;
@@ -746,7 +746,7 @@ static BOOL CreateAllSubDirsW(wchar_t *filepath, int subdir_start, int subdir_en
 			break;
 
 		*s = 0;
-#ifdef __unix__
+#if defined(__unix__) || defined(__UNIX__)
 		wstring wfilepath(filepath);
 		ok = !mkdir(w2s(wfilepath).c_str(), 0755) || errno == EEXIST;
 #else
@@ -1119,10 +1119,13 @@ bool GetUnpackedArchiveSize(const char *archive, unsigned __int64 &sz, unsigned 
 	return ret;
 }
 
-#ifdef SUPPORT_T3
-int ListFilesInArchiveRoot(const char *archive, std::vector<std::string> &list, std::vector<time_t> *timestamps, BOOL incfma)
-#else
 int ListFilesInArchiveRoot(const char *archive, std::vector<std::string> &list, std::vector<time_t> *timestamps)
+#ifdef SUPPORT_T3
+{
+	return ListFilesInArchivePruned(archive, 0, list, timestamps);
+}
+
+int ListFilesInArchivePruned(const char *archive, unsigned int maxdepth, std::vector<std::string> &list, std::vector<time_t> *timestamps)
 #endif
 {
 	if ( !InitArchiveLib() )
@@ -1165,25 +1168,20 @@ int ListFilesInArchiveRoot(const char *archive, std::vector<std::string> &list, 
 		itempath = pArchiveItem->GetFullPath();
 
 #ifdef SUPPORT_T3
-		// skip files not in root except those in Fan Mission Extras or FanMissionExtras
-		const size_t dirsep = itempath.find_first_of(L"/\\");
-		if (dirsep != wstring::npos)
+		// skip files not within maxdepth
+		size_t pos = itempath.find_first_of(L"/\\");
+		unsigned int depth = 0;
+		while (pos != wstring::npos) // assumes itempath has no trailing (back)slash
 		{
-			if (!incfma)
-				continue;
-
-			if (itempath.find_first_of(L"/\\", dirsep + 1) != wstring::npos
-				|| !((!_wcsnicmp(itempath.c_str(), L"Fan Mission Extras", 18)
-				&& dirsep == 18)
-				|| (!_wcsnicmp(itempath.c_str(), L"FanMissionExtras", 16)
-				&& dirsep == 16)))
-				continue;
+			++depth;
+			pos = itempath.find_first_of(L"/\\", pos + 1);
 		}
+		if (depth > maxdepth)
 #else
 		// skip files not in root
 		if (itempath.find_first_of(L"/\\") != wstring::npos)
-			continue;
 #endif
+			continue;
 
 		// convert filename from wstring to string
 		std::string s = w2s(itempath);

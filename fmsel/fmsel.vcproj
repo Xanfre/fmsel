@@ -186,6 +186,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\glml.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\fmsel.cpp"
 				>
 			</File>
@@ -217,6 +221,10 @@
 			</File>
 			<File
 				RelativePath=".\Fl_Html_View.H"
+				>
+			</File>
+			<File
+				RelativePath=".\glml.h"
 				>
 			</File>
 			<File

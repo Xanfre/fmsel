@@ -171,18 +171,15 @@ void WaitForProcessExitOS(unsigned int pid, int waitms)
 #endif
 }
 
-#ifdef _WIN32
 BOOL OpenFileWithAssociatedApp(const char *filename, const char *dirname)
 {
+#ifdef _WIN32
 	int res = (int) ShellExecuteA(NULL, "open", filename, NULL, dirname, SW_SHOWNORMAL);
 	return res > 32;
-}
 #else
-BOOL OpenFileWithAssociatedApp(const char *path)
-{
 	pid_t pid = fork();
 	if (pid < 0)
-		return false;
+		return FALSE;
 	else if (0 == pid)
 	{
 		setsid();
@@ -190,29 +187,27 @@ BOOL OpenFileWithAssociatedApp(const char *path)
 		// exit unless this is the child
 		if (0 != pid)
 			exit(pid > 0 ? 0 : 1);
-		if (-1 == execlp(PREF_PROG, PREF_PROG, path, NULL))
+		if ((NULL != dirname && -1 == chdir(dirname))
+			|| -1 == execlp(PREF_PROG, PREF_PROG, filename, NULL))
 			exit(1);
 	}
 	int status;
 	return -1 != waitpid(pid, &status, 0) && WIFEXITED(status) && 0 == WEXITSTATUS(status);
-}
 #endif
+}
 
 BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser)
 {
-#ifdef _WIN32
 	if (!custombrowser || !*custombrowser)
 		return OpenFileWithAssociatedApp(url, NULL);
 
+#ifdef _WIN32
 	int res = (int) ShellExecuteA(NULL, "open", custombrowser, url, NULL, SW_SHOWNORMAL);
 	return res > 32;
 #else
-	if (!custombrowser || !*custombrowser)
-		return OpenFileWithAssociatedApp(url);
-
 	pid_t pid = fork();
 	if (pid < 0)
-		return false;
+		return FALSE;
 	else if (0 == pid)
 	{
 		setsid();
@@ -583,4 +578,48 @@ BOOL GetFmselModulePath(char *buf, int len)
 #endif
 
 	return TRUE;
+}
+
+// recursive mkdir adapted from http://nion.modprobe.de/blog/archives/357-Recursive-directory-creation.html
+BOOL mkdir_parents(const char *dir)
+{
+	char tmp[MAX_PATH] = {0};
+	char *p = NULL;
+	size_t len;
+
+	strncpy(tmp, dir, sizeof(tmp)-1);
+	len = strlen(tmp);
+
+#ifdef _WIN32
+	if (tmp[len - 1] == '\\')
+		tmp[len - 1] = 0;
+
+	// search starts past the drive letter
+	for (p = tmp + 3; *p; p++)
+	{
+		if (*p == '\\')
+		{
+			*p = 0;
+			_mkdir(tmp);
+			*p = '\\';
+		}
+	}
+
+	return _mkdir(tmp);
+#else
+	if (tmp[len - 1] == '/')
+		tmp[len - 1] = 0;
+
+	for (p = tmp + 1; *p; p++)
+	{
+		if (*p == '/')
+		{
+			*p = 0;
+			mkdir(tmp, 0755);
+			*p = '/';
+		}
+	}
+
+	return mkdir(tmp, 0755);
+#endif
 }

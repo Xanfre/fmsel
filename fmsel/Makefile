@@ -19,8 +19,8 @@ TARGET_OS ?= $(OS)
 
 CFLAGS_ALL = -O2 $(CFLAGS)
 CXXFLAGS_ALL = -O2 $(CXXFLAGS)
-CPPFLAGS_C_ALL = -std=c99 -Wall $(CPPFLAGS)
-CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wno-unused-variable -Wno-unused-result -Wno-format-security $(CPPFLAGS)
+CPPFLAGS_C_ALL = -std=c99 -Wall -Wno-unused $(CPPFLAGS)
+CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wno-unused -Wno-format-security $(CPPFLAGS)
 LDFLAGS_ALL = $(L7ZIP_LIB) $(LDFLAGS)
 
 ifeq ($(TARGET_OS),Windows_NT)
@@ -32,6 +32,12 @@ else
 	CFLAGS_ALL += -fPIC
 	CXXFLAGS_ALL += -fPIC
 	CPPFLAGS_CXX_ALL += -D_LARGEFILE_SOURCE -DLARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -DSYSTEM_UTF8 -D__int64="long long int"
+endif
+ifneq ($(SUPPORT_T3),)
+	CPPFLAGS_CXX_ALL += -DSUPPORT_T3
+endif
+ifneq ($(SUPPORT_GLML),)
+	CPPFLAGS_CXX_ALL += -DSUPPORT_GLML
 endif
 
 LIBS = -lfltk -lfltk_images -l7zip -lvorbisfile -lvorbis -logg
@@ -81,6 +87,11 @@ ZLIB_OBJS = $(objdir)/adler32.o \
 			$(objdir)/zutil.o
 else
 ZLIB_OBJS =
+endif
+ifneq ($(SUPPORT_T3),)
+	FMSEL_OBJS += $(objdir)/glml.o
+else ifneq ($(SUPPORT_GLML),)
+	FMSEL_OBJS += $(objdir)/glml.o
 endif
 
 ifeq ($(BUILD_TOOLS),)

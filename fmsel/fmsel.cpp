@@ -20,6 +20,9 @@
 #include "os.h"
 #include "archive.h"
 #include "lang.h"
+#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+#include "glml.h"
+#endif
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -217,7 +220,7 @@ int strncasecmp_utf_b(const char *s1, const char *s2, int n)
 	return 0;
 }
 
-#if !defined(__APPLE__) || !defined(SYSTEM_UTF8)
+#if !defined(__APPLE__) && !defined(SYSTEM_UTF8)
 static string ToUTF(const string &s)
 {
 	if ( !s.length() )
@@ -242,7 +245,7 @@ static string ToUTF(const string &s)
 #define ToUTF(_x) _x
 #endif
 
-#if !defined(__APPLE__) || !defined(SYSTEM_UTF8)
+#if !defined(__APPLE__) && !defined(SYSTEM_UTF8)
 static string FromUTF(const string &s)
 {
 	if ( !s.length() )
@@ -346,11 +349,13 @@ static void RedrawListControl(BOOL bUpdateButtons = FALSE);
 static void SelectNeighborFM();
 static void ViewSummary(FMEntry *fm);
 static void ViewArchiveContents(FMEntry *fm);
-static const char* GenericHtmlTextPopup(const char *caption, const char *text, int W = 600, int maxH = 800);
+static const char* GenericHtmlTextPopup(const char *caption, const char *text, int W = 600, int maxH = 800, BOOL scale = TRUE);
+static const char* GenericHtmlTextPopupFull(const char *caption, const char *html_body, int W = 800, int H = 800, BOOL scale = TRUE);
 static void ViewAbout();
 static string TextToHtml(const char *text);
+static string GetListName(const FMEntry *fm);
 #if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
-static string GlmlToHtml(const char *glml);
+static void GetNiceNameFromGlml(FMEntry *fm);
 #endif
 
 static int DoImportBatchFmIniDialog();
@@ -471,6 +476,16 @@ enum SortMode
 	SORT_NUM_MODES
 };
 
+// secondary sort mode when sorting by name
+enum NameSortMode
+{
+	NSM_Normal,
+	NSM_Strip,	// ignore any leading article while sorting
+	NSM_Move,	// additionally move a leading article to the end for display
+
+	NSM_NUM_MODES
+};
+
 enum FilterOp
 {
 	FOP_OR,		// search result must contain at least one of all ORed tag filters
@@ -563,6 +578,7 @@ struct FMSelConfig
 	int windowsize_taged[2];
 
 	int sortmode;
+	int namemode;
 	int tagrows;
 	BOOL bVarSizeList;
 	int colvis;
@@ -641,6 +657,7 @@ public:
 		windowsize_taged[0] = windowsize_taged[1] = 0;
 		memset(colsizes, 0xff, sizeof(colsizes));
 		sortmode = SORT_Name;
+		namemode = NSM_Normal;
 		tagrows = 2;
 		bVarSizeList = TRUE;
 		colvis = COL_Name|COL_Priority|COL_Status|COL_LastPlayed|COL_ReleaseDate;
@@ -923,6 +940,7 @@ public:
 		if (colvis == ~0) fprintf(f, "ShowExtColumns=%d\n", 1);
 		if (windowsize_taged[0] && windowsize_taged[1]) fprintf(f, "TagEdSize=%d,%d\n", windowsize_taged[0], windowsize_taged[1]);
 		if (sortmode != SORT_Name) fprintf(f, "SortMode=%d\n", sortmode);
+		if (namemode) fprintf(f, "NameSortMode=%d\n", namemode);
 		if (tagrows != 2) fprintf(f, "TagRows=%d\n", tagrows);
 		if (!bVarSizeList) fprintf(f, "VarSizeRows=%d\n", !!bVarSizeList);
 		if ( !filtName.empty() ) fprintf(f, "FilterName=%s\n", filtName.c_str());
@@ -1013,6 +1031,12 @@ public:
 			sortmode = atoi(val);
 			if (abs(sortmode) <= SORT_None || abs(sortmode) >= SORT_NUM_MODES)
 				sortmode = SORT_None+1;
+		}
+		else if ( !_stricmp(valname, "NameSortMode") )
+		{
+			namemode = atoi(val);
+			if (namemode < NSM_Normal) namemode = NSM_Normal;
+			else if (namemode >= NSM_NUM_MODES) namemode = NSM_NUM_MODES-1;
 		}
 		else if ( !_stricmp(valname, "TagRows") )
 		{
@@ -1176,7 +1200,11 @@ struct FMEntry
 	};
 
 public:
+#ifdef SUPPORT_T3
+	char name[262];			// dir name (max storage name len supported by resource manager in dark is 30, but T3 can have more)
+#else
 	char name[32];			// dir name (30 is max storage name len supported by resource manager in dark)
+#endif
 	string name_utf;		// 'name' converted to UTF
 	string nicename;		// optional nicely formatted name displayed in list
 	string archive;			// optional archive filename
@@ -1927,7 +1955,7 @@ static BOOL LoadRemoveFileInfo(FMEntry *fm)
 
 static void GenerateArchiveInstallName(const char *name, FMEntry *fm)
 {
-	// generate install dir name from archive name, must be unique and not exceed 30 characters
+	// generate install dir name from archive name, it must be unique and for dark games not exceed 30 characters
 
 	// extract file title
 	char ftitle[MAX_PATH_BUF];
@@ -1943,31 +1971,45 @@ static void GenerateArchiveInstallName(const char *name, FMEntry *fm)
 		if ( strchr(illegal_chars, *s) )
 			*s = '_';
 
+#ifdef SUPPORT_T3
+	// thief 3 can handle long dir names
+	int bufsz = g_bRunningThief3 ? 260 : 30;
+
+	int n = strlen(ftitle);
+	if (n > bufsz)
+		ftitle[n=bufsz] = 0;
+#else
 	int n = strlen(ftitle);
 	if (n > 30)
 		ftitle[n=30] = 0;
+#endif
 
 	// check of uniqueness
 	if ( GetFM(ftitle) )
 	{
 		// not unique, append "(<number>)" with increasing numbers until unique is found
+#ifdef SUPPORT_T3
+		char altname[262];
+#else
 		char altname[32];
+#endif
 		char seq[8];
 
-#ifdef _WIN32
-		for (int i=0; ; i++)
+		for (int i=0; i<99998; i++)
 		{
 			sprintf(seq, "(%d)", i+2);
-#else
-		for (unsigned short i=0; ; i++)
-		{
-			sprintf(seq, "(%u)", i+2);
-#endif
 			int l = strlen(seq);
+#ifdef SUPPORT_T3
+			if (n+l > bufsz)
+			{
+				strcpy(altname, ftitle);
+				altname[bufsz-l] = 0;
+#else
 			if (n+l > 30)
 			{
 				strcpy(altname, ftitle);
 				altname[30-l] = 0;
+#endif
 				strcat(altname, seq);
 			}
 			else
@@ -2002,6 +2044,10 @@ static void EnumFmArchive(const char *name_raw)
 
 		ApplyFmIni(fm, g_bRunningShock);
 		AutoScanReleaseDate(fm, TRUE);
+
+#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+		GetNiceNameFromGlml(fm);
+#endif
 
 		fm->OnUpdateName();
 
@@ -2048,15 +2094,16 @@ static void ScanArchiveRepo(const char *subdirname = NULL, int depth = 0)
 			if ( isdirsep(f->d_name[len-1]) )
 			{
 				// recurse into subdir
+				string name = FromUTF(f->d_name);
 				if (subdirname)
 				{
 					sdir = subdirname;
-					sdir.append(f->d_name);
+					sdir.append(name);
 
 					ScanArchiveRepo(sdir.c_str(), depth+1);
 				}
 				else
-					ScanArchiveRepo(f->d_name, depth+1);
+					ScanArchiveRepo(name.c_str(), depth+1);
 			}
 			else
 			{
@@ -2067,15 +2114,15 @@ static void ScanArchiveRepo(const char *subdirname = NULL, int depth = 0)
 					int k = len - 1;
 					while (k >= 0 && !isdirsep(f->d_name[k])) k--;
 					k++;
-					const char *name = f->d_name+k;
+					string name = FromUTF(f->d_name+k);
 
 					// prepend subdir name if inside one
 					if (!subdirname)
-						EnumFmArchive(name);
+						EnumFmArchive(name.c_str());
 					else
 					{
 						sdir = subdirname;
-						sdir.append(f->d_name);
+						sdir.append(FromUTF(f->d_name));
 
 						EnumFmArchive( sdir.c_str() );
 					}
@@ -2089,7 +2136,11 @@ static void ScanArchiveRepo(const char *subdirname = NULL, int depth = 0)
 
 static void EnumFmDir(const char *name)
 {
+#ifdef SUPPORT_T3
+	if (strlen(name) > (size_t)(g_bRunningThief3 ? 260 : 30))
+#else
 	if (strlen(name) > 30)
+#endif
 	{
 		TRACE("skipping dir with too long name: %s", name);
 		g_invalidDirs.push_back(name);
@@ -2150,9 +2201,9 @@ static void ScanFmDir()
 				int k = len - 2;
 				while (k >= 0 && !isdirsep(f->d_name[k])) k--;
 				k++;
-				const char *name = f->d_name+k;
+				const string name = FromUTF(f->d_name+k);
 
-				EnumFmDir(name);
+				EnumFmDir(name.c_str());
 			}
 		}
 
@@ -2342,7 +2393,11 @@ new_block:
 					state = 0;
 					continue;
 				}
+#ifdef SUPPORT_T3
+				else if (len > (g_bRunningThief3 ? 260 : 30))
+#else
 				else if (len > 30)
+#endif
 				{
 					TRACE("FM name too long: %s", s);
 					ASSERT(FALSE);
@@ -2431,9 +2486,24 @@ static void DestroyTagNamelists()
 }
 
 
+static __inline void strip_lead(string &name)
+{
+	if (name.compare(0, 4, "the ") == 0)
+		name.erase(0, 4);
+	else if (name.compare(0, 3, "an ") == 0)
+		name.erase(0, 3);
+	else if (name.compare(0, 2, "a ") == 0)
+		name.erase(0, 2);
+}
 static __inline bool sort_name(FMEntry *a, FMEntry *b)
 {
-	return strcmp(a->GetFilterName(), b->GetFilterName()) < 0;
+	if (g_cfg.namemode==NSM_Normal)
+		return strcmp(a->GetFilterName(), b->GetFilterName()) < 0;
+	string x = a->GetFilterName();
+	string y = b->GetFilterName();
+	strip_lead(x);
+	strip_lead(y);
+	return x.compare(y) < 0;
 }
 static __inline bool sort_rating(FMEntry *a, FMEntry *b)
 {
@@ -3299,11 +3369,12 @@ static BOOL ReadModIni(FMEntry *fm, const FMEntry *realfm)
 /////////////////////////////////////////////////////////////////////
 // MISC TASKS
 
+static const char *g_doctypes[] = {
+	"rtf", "wri", "txt", "html", "htm", "doc", "pdf"
 #if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
-static const char *g_doctypes[] = { "glml", "rtf", "wri", "txt", "html", "htm", "doc", "pdf" };
-#else
-static const char *g_doctypes[] = { "rtf", "wri", "txt", "html", "htm", "doc", "pdf" };
+	, "glml"
 #endif
+};
 
 struct FileDiffInfo
 {
@@ -3563,33 +3634,23 @@ static BOOL FmReadFileToBuffer(const FMEntry *fm, const char *fname, char *&data
 // otherwise only the filename without path is returned
 static BOOL FmGetPhysicalFileFromArchive(FMEntry *fm, const char *filename, string &outfile, int bReturnWithPath)
 {
+#ifdef SUPPORT_T3
+	// the source file may have a path, remove it for the temp file
+	string nm = filename;
+	unsigned int last_sep_pos = nm.find_last_of("/\\");
+	if (last_sep_pos != string::npos)
+		nm.erase(0, last_sep_pos + 1);
+
+	string s;
+	if ( !GetTempFile(nm.c_str(), s, FALSE) )
+#else
 	string s;
 	if ( !GetTempFile(filename, s, FALSE) )
+#endif
 		return FALSE;
 
 	string t = g_sTempDir + s;
 	const char *pErrMsg = NULL;
-
-#ifdef SUPPORT_T3
-	// make the directory first if the filename includes a (single) subdirectory
-	const char *sep;
-	if ((sep = strchr(filename, DIRSEP[0])) != NULL)
-	{
-		const size_t dirlen = sep - filename;
-		char *dir = new char[dirlen + 1];
-
-		if (NULL == dir)
-			return FALSE;
-
-		memcpy(dir, filename, dirlen);
-		dir[dirlen] = '\0';
-		string dirpath = g_sTempDirAbs + dir;
-		delete[] dir;
-
-		if (_mkdir(dirpath.c_str()) && errno != EEXIST)
-			return FALSE;
-	}
-#endif
 
 	if ( !ExtractFileFromArchive(fm->GetArchiveFilePath().c_str(), filename, t.c_str(), &pErrMsg) )
 	{
@@ -3617,59 +3678,45 @@ static BOOL FmOpenFileWithAssociatedApp(FMEntry *fm, const char *filename)
 
 	char pathname[MAX_PATH_BUF];
 
-#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
-	const char *ext = strrchr(filename, '.');
-	if (NULL != ext && !_stricmp(ext, ".glml"))
-	{
-		char *data;
-		int n;
-
-		if ( !FmReadFileToBuffer(fm, filename, data, n) )
-			return FALSE;
-
-		// convert GLML to HTML
-
-		string html = GlmlToHtml(data);
-
-		delete[] data;
-
-		GenericHtmlTextPopup(NULL, html.c_str(), (g_cfg.bLargeFont ? 976 : 800));
-
-		return TRUE;
-	}
-#endif
-
 	if ( !fm->IsInstalled() )
 	{
 		// extract file from archive to temp dir
 
 		string s;
-		if ( !FmGetPhysicalFileFromArchive(fm, filename, s, FALSE)
-#ifndef _WIN32
-			|| snprintf(pathname, sizeof(pathname), "%s" DIRSEP "%s", g_sTempDirAbs.c_str(), filename) == -1
-#endif
-			)
+		if ( !FmGetPhysicalFileFromArchive(fm, filename, s, FALSE) )
 			return FALSE;
 
-#ifdef _WIN32
-		return OpenFileWithAssociatedApp(filename, g_sTempDirAbs.c_str());
+#ifdef SUPPORT_T3
+		string converted_glml = GlmlToHtml(s.c_str(), g_sTempDirAbs.c_str());
+		if (converted_glml.empty())
+			return OpenFileWithAssociatedApp(s.c_str(), g_sTempDirAbs.c_str());
+		else
+		{
+			GenericHtmlTextPopupFull(NULL, converted_glml.c_str(), (g_cfg.bLargeFont ? 976 : 800));
+			return TRUE;
+		}
 #else
-		return OpenFileWithAssociatedApp(pathname);
+		return OpenFileWithAssociatedApp(filename, g_sTempDirAbs.c_str());
 #endif
 	}
 	else
 	{
-#ifdef _WIN32
 		if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
-#else
-		if (snprintf(pathname, sizeof(pathname), "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, filename) == -1)
-#endif
 			return FALSE;
 
-#ifdef _WIN32
+#ifdef SUPPORT_T3
+		string converted_glml = GlmlToHtml(filename, pathname);
+		if (converted_glml.empty())
+			// filename may contain a path here ("fan mission extras\<doc>").
+			// the resulting complete path is correct, though (and it works)
+#endif
 		return OpenFileWithAssociatedApp(filename, pathname);
-#else
-		return OpenFileWithAssociatedApp(pathname);
+#ifdef SUPPORT_T3
+		else
+		{
+			GenericHtmlTextPopupFull(NULL, converted_glml.c_str(), (g_cfg.bLargeFont ? 976 : 800));
+			return TRUE;
+		}
 #endif
 	}
 }
@@ -4166,27 +4213,56 @@ static BOOL ApplyFmIni(FMEntry *fm, BOOL bFallbackModIni)
 }
 
 #ifdef SUPPORT_T3
-static BOOL SetReleaseDateFromFile(FMEntry *fm, const char *fname, time_t tmMin, time_t tmMax, const char *subdir = NULL)
-#else
-static BOOL SetReleaseDateFromFile(FMEntry *fm, const char *fname, time_t tmMin, time_t tmMax)
+// build a list of all files in path and any subdirs to depth maxdepth (path being depth 0). the entries in
+// list are relative to path
+static int ListFilesInDirPruned(const char *path, unsigned int maxdepth, std::vector<std::string> &list)
+{
+	dirent **files;
+	int nFiles = fl_filename_list(path, &files, NULL);
+	if (nFiles <= 0)
+		return nFiles;
+
+	for (int i=0; i<nFiles; i++)
+	{
+		dirent *f = files[i];
+
+		int len = strlen(f->d_name);
+		if ( !isdirsep(f->d_name[len-1]) )
+			list.push_back(f->d_name);
+		else if ( !strcmp(f->d_name, "./") || !strcmp(f->d_name, "../") )
+			continue;
+		else if (maxdepth > 0)
+		{
+			// recurse over real dirs if maxdepth not reached
+			char path_sub[MAX_PATH_BUF];
+			if (_snprintf_s(path_sub, sizeof(path_sub), _TRUNCATE, "%s" DIRSEP "%s", path, f->d_name) == -1)
+				continue;
+			vector<string> sublist;
+			ListFilesInDirPruned(path_sub, maxdepth - 1, sublist);
+			path_sub[len-1] = DIRSEP[0];
+			for ( size_t j=0; j<sublist.size(); ++j )
+			{
+				// use the correct dir separator
+				if (_snprintf_s(path_sub + len - 1, sizeof(path_sub) - len + 1, _TRUNCATE, DIRSEP "%s", sublist[j].c_str()) == -1)
+					continue;
+				list.push_back(path_sub);
+			}
+		}
+	}
+
+	// free data
+	fl_filename_free_list(&files, nFiles);
+
+	return list.size();
+}
 #endif
+
+static BOOL SetReleaseDateFromFile(FMEntry *fm, const char *fname, time_t tmMin, time_t tmMax)
 {
 	char pathname[MAX_PATH_BUF];
 
-#ifdef SUPPORT_T3
-	if (subdir)
-	{
-		if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, subdir, fname) == -1)
-			return FALSE;
-	}
-	else
-	{
-#endif
 	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
 		return FALSE;
-#ifdef SUPPORT_T3
-	}
-#endif
 
 	struct stat st = {0};
 
@@ -4238,12 +4314,39 @@ static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, vector<string> &files, vec
 	return FALSE;
 }
 
-static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, dirent **files, const int nFiles,
-										 const char **filetypes, int nTypes, time_t tmMin, time_t tmMax
 #ifdef SUPPORT_T3
-									   , const char *subdir = NULL
-#endif
-										 )
+static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, vector<string> &files, const int nFiles,
+										 const char **filetypes, int nTypes, time_t tmMin, time_t tmMax)
+{
+	for (int i=0; i<nFiles; i++)
+	{
+		string &f = files[i];
+
+		// skip dirs
+		int len = f.length();
+		if ( isdirsep(f[len-1]) )
+			continue;
+
+		// get extension
+		while (len && f[len] != '.' && !isdirsep(f[len])) len--;
+		if (f[len] != '.' || !f[len+1])
+			continue;
+
+		const char *ext = f.c_str() + len + 1;
+
+		// check if extension matches any of the requested ones
+		for (int j=0; j<nTypes; j++)
+		{
+			if (!_stricmp(ext, filetypes[j]) && SetReleaseDateFromFile(fm, f.c_str(), tmMin, tmMax))
+				return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+#else
+static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, dirent **files, const int nFiles,
+										 const char **filetypes, int nTypes, time_t tmMin, time_t tmMax)
 {
 	for (int i=0; i<nFiles; i++)
 	{
@@ -4264,17 +4367,14 @@ static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, dirent **files, const int 
 		// check if extension matches any of the requested ones
 		for (int j=0; j<nTypes; j++)
 		{
-#ifdef SUPPORT_T3
-			if (!_stricmp(ext, filetypes[j]) && SetReleaseDateFromFile(fm, f->d_name, tmMin, tmMax, subdir))
-#else
 			if (!_stricmp(ext, filetypes[j]) && SetReleaseDateFromFile(fm, f->d_name, tmMin, tmMax))
-#endif
 				return TRUE;
 		}
 	}
 
 	return FALSE;
 }
+#endif
 
 static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipFmIni = FALSE)
 {
@@ -4301,61 +4401,27 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 
 	const char *mistypes[] = { "mis" };
 
-#ifdef SUPPORT_T3
-	BOOL bResult = FALSE;
-#else
 	BOOL bResult;
-#endif
 
 	if ( fm->IsInstalled() )
 	{
 		// couldn't get date from fm.ini, now try to get date from the modified timestamp of some appropiate files
 		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 			return FALSE;
+#ifdef SUPPORT_T3
+		vector<string> files;
 
+		// get a list of all files to depth 1 (to allow for various spellings of
+		// garrettloader's "fan mission extras" directory)
+		int nFiles = ListFilesInDirPruned(fname, 1, files);
+#else
 		dirent **files;
 		int nFiles = fl_filename_list(fname, &files, NO_COMP_UTFCONV);
+#endif
 		if (nFiles <= 0)
 			return FALSE;
 
-#ifdef SUPPORT_T3
-		if (g_bRunningThief3)
-		{
-			for (int i=0; i<nFiles; i++)
-			{
-				dirent *f = files[i];
-
-				if (isdirsep(f->d_name[strlen(f->d_name)-1])
-					&& (!_strnicmp(f->d_name, "Fan Mission Extras", 18)
-					|| !_strnicmp(f->d_name, "FanMissionExtras", 16)))
-				{
-					char subdir[19] = {0}; // zero the array
-					memcpy(subdir, f->d_name, tolower(f->d_name[15]) == 's' ? 16 : 18);
-
-					if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, subdir) == -1)
-					{
-						fl_filename_free_list(&files, nFiles);
-						return FALSE;
-					}
-
-					dirent **fmaFiles;
-					int nFmaFiles = fl_filename_list(fname, &fmaFiles, NO_COMP_UTFCONV);
-					if (nFmaFiles <= 0)
-						break;
-
-					bResult = ScanForTypeAndSetReleaseDate(fm, fmaFiles, nFmaFiles, g_doctypes, sizeof(g_doctypes)/sizeof(g_doctypes[0]), tmMin, tmMax, subdir);
-					fl_filename_free_list(&fmaFiles, nFmaFiles);
-
-					break;
-				}
-			}
-		}
-#endif
-
 		// scan for documentation/readme files (txt/rtf/wri/doc/pdf) and use date from that
-#ifdef SUPPORT_T3
-		if (!bResult)
-#endif
 		bResult = ScanForTypeAndSetReleaseDate(fm, files, nFiles, g_doctypes, sizeof(g_doctypes)/sizeof(g_doctypes[0]), tmMin, tmMax);
 
 #ifdef SUPPORT_T3
@@ -4366,8 +4432,10 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 			// didn't find any documentation files, now scan for *.mis files and use the date from that
 			bResult = ScanForTypeAndSetReleaseDate(fm, files, nFiles, mistypes, sizeof(mistypes)/sizeof(mistypes[0]), tmMin, tmMax);
 
+#ifndef SUPPORT_T3
 		// free data
 		fl_filename_free_list(&files, nFiles);
+#endif
 	}
 	else
 	{
@@ -4377,7 +4445,9 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 		vector<time_t> ftimes;
 
 #ifdef SUPPORT_T3
-		int nFiles = ListFilesInArchiveRoot(fm->GetArchiveFilePath().c_str(), files, &ftimes, g_bRunningThief3);
+		// look in the archive root and all first level directories to allow for various spellings of
+		// garrettloader's "fan mission extras" directory
+		int nFiles = ListFilesInArchivePruned(fm->GetArchiveFilePath().c_str(), 1, files, &ftimes);
 #else
 		int nFiles = ListFilesInArchiveRoot(fm->GetArchiveFilePath().c_str(), files, &ftimes);
 #endif
@@ -4529,7 +4599,14 @@ static string UnescapeString(const char *s)
 static __inline int GetTypeScore(const char *ext)
 {
 	const int nTypes = sizeof(g_doctypes)/sizeof(g_doctypes[0]);
+#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+	// special treatment for glml, because it is known to be a readme
+	if ( !_stricmp(ext, g_doctypes[nTypes-1]) )
+		return 9000;
+	for (int i=0; i<nTypes-1; i++)
+#else
 	for (int i=0; i<nTypes; i++)
+#endif
 		if ( !_stricmp(ext, g_doctypes[i]) )
 			return (nTypes-i-1) * 10;
 	return 0;
@@ -4570,12 +4647,6 @@ static int GetFileScore(const char *s)
 
 	int score = GetTypeScore(ext);
 
-#ifdef SUPPORT_T3
-	// is in "Fan Mission Extras" or "FanMissionExtras"
-	if ( g_bRunningThief3
-		&& (!_strnicmp(s, "Fan Mission Extras", 18) || !_strnicmp(s, "FanMissionExtras", 16)) )
-		score += 9000;
-#endif
 	// starts with "fminfo"
 	if ( !_strnicmp(s, "fminfo", 6) )
 	{
@@ -4637,7 +4708,9 @@ static BOOL GetDocFilesFromArch(FMEntry *fm, vector<string> &list)
 	vector<string> files;
 
 #ifdef SUPPORT_T3
-	int nFiles = ListFilesInArchiveRoot(fm->GetArchiveFilePath().c_str(), files, NULL, g_bRunningThief3);
+	// look in the archive root and all first level directories to allow for various spellings of
+	// garrettloader's "fan mission extras" directory
+	int nFiles = ListFilesInArchivePruned(fm->GetArchiveFilePath().c_str(), 1, files);
 #else
 	int nFiles = ListFilesInArchiveRoot(fm->GetArchiveFilePath().c_str(), files);
 #endif
@@ -4699,8 +4772,16 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 		return FALSE;
 
+#ifdef SUPPORT_T3
+	vector<string> files;
+
+	// get a list of all files to depth 1 (to allow for various spellings of
+	// garrettloader's "fan mission extras" directory)
+	int nFiles = ListFilesInDirPruned(fname, 1, files);
+#else
 	dirent **files;
 	int nFiles = fl_filename_list(fname, &files, NO_COMP_UTFCONV);
+#endif
 	if (nFiles <= 0)
 		return FALSE;
 
@@ -4710,69 +4791,25 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 	vector<const char *> tmplist;
 	tmplist.reserve(16);
 
-#ifdef SUPPORT_T3
-	dirent **fmaFiles = NULL;
-	int nFmaFiles = 0;
-	int fmaDocs = 0;
-	char subdir[19] = {0}; // zero the array
-
-	if (g_bRunningThief3)
-	{
-		for (i=0; i<nFiles; i++)
-		{
-			dirent *f = files[i];
-
-			if (isdirsep(f->d_name[strlen(f->d_name)-1])
-				&& (!_strnicmp(f->d_name, "Fan Mission Extras", 18)
-				|| !_strnicmp(f->d_name, "FanMissionExtras", 16)))
-			{
-				memcpy(subdir, f->d_name, tolower(f->d_name[15]) == 's' ? 16 : 18);
-
-				if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, subdir) == -1)
-				{
-					fl_filename_free_list(&files, nFiles);
-					return FALSE;
-				}
-
-				nFmaFiles = fl_filename_list(fname, &fmaFiles, NO_COMP_UTFCONV);
-				if (nFmaFiles <= 0)
-					break;
-
-				for (int j=0; j<nFmaFiles; j++)
-				{
-					dirent *fmaF = fmaFiles[i];
-
-					// skip dirs
-					int len = strlen(fmaF->d_name);
-					if ( isdirsep(fmaF->d_name[len-1]) )
-						continue;
-
-					// get extension
-					while (len && fmaF->d_name[len] != '.' && !isdirsep(fmaF->d_name[len])) len--;
-					if (fmaF->d_name[len] != '.' || !fmaF->d_name[len+1])
-						continue;
-
-					const char *ext = fmaF->d_name + len + 1;
-
-					// check if extension matches any of the requested ones
-					for (int k=0; k<nTypes; k++)
-					{
-						if ( !_stricmp(ext, g_doctypes[k]) )
-						{
-							tmplist.push_back(fmaF->d_name);
-							fmaDocs++;
-						}
-					}
-				}
-
-				break;
-			}
-		}
-	}
-#endif
-
 	for (i=0; i<nFiles; i++)
 	{
+#ifdef SUPPORT_T3
+		const string &str = files[i];
+		const char *s = str.c_str();
+		int len = str.length();
+
+		// get extension
+		while (len && s[len] != '.' && !isdirsep(s[len])) len--;
+		if (s[len] != '.' || !s[len+1])
+			continue;
+
+		const char *ext = s + len + 1;
+
+		// check if extension matches any of the requested ones
+		for (int j=0; j<nTypes; j++)
+			if ( !_stricmp(ext, g_doctypes[j]) )
+				tmplist.push_back(s);
+#else
 		dirent *f = files[i];
 
 		// skip dirs
@@ -4791,47 +4828,21 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 		for (int j=0; j<nTypes; j++)
 			if ( !_stricmp(ext, g_doctypes[j]) )
 				tmplist.push_back(f->d_name);
+#endif
 	}
 
 	if (tmplist.size() > 1)
-#ifdef SUPPORT_T3
-	{
-		if (fmaDocs > 0)
-		{
-			// sort files so most likely info file is first
-			// keep FMA files in front of the others
-			std::sort(tmplist.begin(), tmplist.begin()+fmaDocs-1, compare_docfiles);
-			std::sort(tmplist.begin()+fmaDocs, tmplist.end(), compare_docfiles);
-		}
-		else
-#endif
 		// sort files so most likely info file is first
 		std::sort(tmplist.begin(), tmplist.end(), compare_docfiles);
-#ifdef SUPPORT_T3
-	}
-#endif
 
 	// copy temp list to 'list'
 	list.reserve( tmplist.size() );
 	for (i=0; i<(int)tmplist.size(); i++)
-	{
-#ifdef SUPPORT_T3
-		if (i < fmaDocs)
-		{
-			list.push_back(subdir);
-			list.back().append(DIRSEP);
-			list.back().append(tmplist[i]);
-		}
-		else
-#endif
 		list.push_back(tmplist[i]);
-	}
 
+#ifndef SUPPORT_T3
 	// free data
 	fl_filename_free_list(&files, nFiles);
-#ifdef SUPPORT_T3
-	if (NULL != fmaFiles && nFmaFiles > 0)
-		fl_filename_free_list(&fmaFiles, nFmaFiles);
 #endif
 
 	return !list.empty();
@@ -5128,11 +5139,7 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 	// TODO: a progress dialog for this might be nice (we'd have to enumerate all files in advances, so we know
 	//       the filecount, and then do archiving in a thread
 
-#ifdef SUPPORT_T3
-	if (!g_bRunningShock && !g_bRunningThief3)
-#else
 	if (!g_bRunningShock)
-#endif
 	{
 		// not necessary, it's only an internal temp file for thief (it gets created each time a savegame is loaded
 		// or a mission is started)
@@ -5141,7 +5148,14 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 			goto abort;*/
 
 		// thief saves
+#ifdef SUPPORT_T3
+		// for thief3 try the original folder name first and also back up the options override file
+		if ( (!g_bRunningThief3 && !BackupOptDirToArchive(fm, "saves"))
+			|| (g_bRunningThief3 && (!BackupOptDirToArchive(fm, "SaveGames") || !BackupOptDirToArchive(fm, "Saves")
+				|| !BackupOptFileToArchive(fm, "SneakyOptions_diff.ini"))) )
+#else
 		if ( !BackupOptDirToArchive(fm, "saves") )
+#endif
 			goto abort;
 	}
 
@@ -5185,10 +5199,7 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 
 	// screenshots
 #ifdef SUPPORT_T3
-	if (!g_bRunningThief3 && !BackupOptDirToArchive(fm, "screenshots"))
-		goto abort;
-
-	if (g_bRunningThief3 && (!BackupOptDirToArchive(fm, "SaveGames") || !BackupOptDirToArchive(fm, "ScreenShots")))
+	if ( !BackupOptDirToArchive(fm, g_bRunningThief3 ? "ScreenShots" : "screenshots") )
 #else
 	if ( !BackupOptDirToArchive(fm, "screenshots") )
 #endif
@@ -6557,6 +6568,19 @@ static BOOL DeleteFM(FMEntry *fm)
 }
 
 
+// purge the database of all entries for deleted fms
+static void CleanDb()
+{
+	unsigned int i = 0;
+	while (i<g_db.size())
+	{
+		if (!g_db[i]->IsArchived() && !g_db[i]->IsInstalled())
+			DeleteFM(g_db[i]);
+		else
+			i++;
+	}
+}
+
 static bool ListEnumeratedArchiveFile(const char *fname, void *p)
 {
 	ASSERT(p != NULL);
@@ -6999,6 +7023,10 @@ public:
 			CMD_FontSizeNormal,
 			CMD_FontSizeLarge,
 
+			CMD_NameSortNormal,
+			CMD_NameSortStrip,
+			CMD_NameSortMove,
+
 			CMD_Scale1,
 			CMD_ScaleLast = CMD_Scale1+4,
 
@@ -7020,6 +7048,7 @@ public:
 			CMD_ArchivePath,
 
 			CMD_SaveDb,
+			CMD_CleanDb,
 
 			CMD_AutoScanDates,
 			CMD_ExportIni,
@@ -7044,7 +7073,7 @@ public:
 		strcat_s(dateformats[0], sizeof(dateformats[0]), $("(cur locale)"));
 		dateformats[0][sizeof(dateformats[0])-1] = 0;
 
-		const int MAX_MENU_ITEMS = 64+8;
+		const int MAX_MENU_ITEMS = 64+16;
 		int menu_items = 0;
 
 		Fl_Menu_Item menu[MAX_MENU_ITEMS];
@@ -7083,6 +7112,11 @@ public:
 		MENU_SUB($("Misc")); MENU_MOD_DIV();
 			MENU_TITEM($("Word Wrap Descr Editor"), CMD_ToggleWrapDescrEdit, g_cfg.bWrapDescrEditor);
 			MENU_TITEM($("Word Wrap Notes Editor"), CMD_ToggleWrapNotesEdit, g_cfg.bWrapNotesEditor);
+			MENU_END();
+		MENU_SUB($("Name Format")); MENU_MOD_DIV();
+			MENU_RITEM($("Keep Leading Article"), CMD_NameSortNormal, g_cfg.namemode == NSM_Normal);
+			MENU_RITEM($("Ignore Leading Article"), CMD_NameSortStrip, g_cfg.namemode == NSM_Strip);
+			MENU_RITEM($("Move Leading Article"), CMD_NameSortMove, g_cfg.namemode == NSM_Move);
 			MENU_END();
 		if (bAdvanced)
 		{
@@ -7130,6 +7164,7 @@ public:
 		if (bAdvanced)
 		{
 			MENU_ITEM($("Save Db Now"), CMD_SaveDb);
+			MENU_ITEM($("Clean Db"), CMD_CleanDb);
 		}
 		MENU_MOD_DIV();
 		MENU_ITEM($("About"), CMD_About);
@@ -7185,6 +7220,14 @@ public:
 			g_cfg.OnModified();
 			break;
 
+		case CMD_NameSortNormal:
+		case CMD_NameSortStrip:
+		case CMD_NameSortMove:
+			g_cfg.namemode = cmd_id-CMD_NameSortNormal;
+			g_cfg.OnModified();
+			RefreshFilteredDb(TRUE, TRUE);
+			break;
+
 		case CMD_ToggleAutoRefresh:
 			g_cfg.bAutoRefreshFilteredDb = !g_cfg.bAutoRefreshFilteredDb;
 			g_cfg.OnModified();
@@ -7228,6 +7271,10 @@ public:
 		case CMD_SaveDb:
 			if ( !SaveDb() )
 				fl_alert($("Failed to save \"fmsel.ini\"."));
+			break;
+		case CMD_CleanDb:
+			if ( fl_choice($("Are you sure you want to clean all\nobsolete entries from the database?"), fl_no, fl_yes, NULL) )
+				CleanDb();
 			break;
 
 		case CMD_AutoScanDates:
@@ -8567,8 +8614,8 @@ public:
 
 Fl_FM_List::ColDef Fl_FM_List::s_columns[COL_NUM_COLS] =
 {
-	{"Name", 150, 150, 0, TRUE, SORT_Name},
-	{"Pri", 24, -1, 26, TRUE, SORT_Priority},
+	{"Name", 364, 150, 0, TRUE, SORT_Name},
+	{"Pri", 30, -1, 26, TRUE, SORT_Priority},
 	{"Status", 50, -1, 0, TRUE, SORT_Status},
 	{"Last Played", 80, 60, 90, TRUE, SORT_LastPlayed},
 	{"Release Date", 80, 60, 90, TRUE, SORT_ReleaseDate},
@@ -8752,7 +8799,7 @@ draw_sortarrow:
 							fl_font(FL_HELVETICA, m_fontsize);
 						}
 					}
-					fl_draw(fm->GetFriendlyName(), X+2+iw, Y, W-(fm->rating>=0 ? 5*16+4 : 0)-iw, H, (H>m_noTagH)?FL_ALIGN_TOP_LEFT:FL_ALIGN_LEFT);
+					fl_draw(GetListName(fm).c_str(), X+2+iw, Y, W-(fm->rating>=0 ? 5*16+4 : 0)-iw, H, (H>m_noTagH)?FL_ALIGN_TOP_LEFT:FL_ALIGN_LEFT);
 
 					// tags
 					if (!fm->tagsUI.empty() && (H>m_noTagH))
@@ -10401,129 +10448,53 @@ static string EscapedTextToHtml(const char *text)
 	return d;
 }
 
-#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
-static string GlmlToHtml(const char *glml)
+static string GetListName(const FMEntry *fm)
 {
-	string html;
-	const size_t glmlLen = strlen(glml);
-	char tag[16] = {0};
-	char subTag[16] = {0}; // needs to be same size as tag
-	html.reserve(glmlLen + 1);
-	for (size_t i = 0; i < glmlLen; i++)
+	string name = fm->GetFriendlyName();
+	if (g_cfg.namemode!=NSM_Move) return name;
+
+	// move any leading article to the end of the name
+	string fname = fm->GetFilterName();
+	if (fname.compare(0, 4, "the ") == 0)
 	{
-		char c = glml[i];
-		if (c == '[')
-		{
-			// opening tags
-			if (i < glmlLen - 5 && !strncmp(&glml[i + 1], "GL", 2))
-			{
-				*subTag = '\0';
-				for (size_t j = i + 3; j < std::min(i + 33, glmlLen); j++)
-				{
-					if (glml[j] == ']')
-					{
-						strcpy(tag, subTag);
-						if (!strcmp(tag, "TITLE"))
-							html.append("<h1>");
-						else if (!strcmp(tag, "SUBTITLE"))
-							html.append("<h2>");
-						else if (!strcmp(tag, "CENTER"))
-							html.append("<center>");
-						else if (!strcmp(tag, "WARNINGS"))
-							html.append("<b>");
-						// needed to make language tags look nice
-						else if (!strcmp(tag, "LANGUAGE"))
-							html.append("<p>");
-						else if (!strcmp(tag, "NL"))
-							html.append("<br>");
-						// include two breaks to properly format horizontal
-						// lines
-						else if (!strcmp(tag, "LINE"))
-							html.append("<hr><br><br>");
-						else
-						{
-							size_t tagLen = strlen(tag);
-							size_t k;
-							for (k = 0; k < strlen(tag); k++)
-							{
-								if (!isalpha(tag[k]) || !isupper(tag[k]))
-									break;
-							}
-							if (k != tagLen)
-							{
-								html.append("[GL");
-								html.append(subTag);
-								html.append("]");
-							}
-						}
-						i = j;
-						break;
-					}
-					else if (strlen(subTag) < sizeof(subTag) - 1)
-					{
-						const size_t subTagLen = strlen(subTag);
-						subTag[subTagLen] = glml[j];
-						subTag[subTagLen + 1] = '\0';
-					}
-				}
-			}
-			// closing tags
-			else if (i < glmlLen - 6 && !strncmp(&glml[i + 1], "/GL", 3))
-			{
-				*subTag = '\0';
-				for (size_t j = i + 4; j < std::min(i + 34, glmlLen); j++)
-				{
-					if (glml[j] == ']')
-					{
-						strcpy(tag, subTag);
-						if (!strcmp(tag, "TITLE"))
-							html.append("</h1>");
-						else if (!strcmp(tag, "SUBTITLE"))
-							html.append("</h2>");
-						else if (!strcmp(tag, "CENTER"))
-							html.append("</center>");
-						else if (!strcmp(tag, "WARNINGS"))
-							html.append("</b>");
-						// needed to make language tags look nice.
-						else if (!strcmp(tag, "LANGUAGE"))
-							html.append("</p>");
-						else
-						{
-							size_t tagLen = strlen(tag);
-							size_t k;
-							for (k = 0; k < strlen(tag); k++)
-							{
-								if (!isalpha(tag[k]) || !isupper(tag[k]))
-									break;
-							}
-							if (k != tagLen)
-							{
-								html.append("[/GL");
-								html.append(subTag);
-								html.append("]");
-							}
-						}
-						i = j;
-						break;
-					}
-					else if (strlen(subTag) < sizeof(subTag) - 1)
-					{
-						const size_t subTagLen = strlen(subTag);
-						subTag[subTagLen] = glml[j];
-						subTag[subTagLen + 1] = '\0';
-					}
-				}
-			}
-			else
-				html.append("[");
-		}
-		else
-			html.push_back(c);
+		name += ", " + name.substr(0, 3);
+		name.erase(0, 4);
 	}
-#ifndef _MSC_VER
-	html.shrink_to_fit();
-#endif
-	return html;
+	else if (fname.compare(0, 3, "an ") == 0)
+	{
+		name += ", " + name.substr(0, 2);
+		name.erase(0, 3);
+	}
+	else if (fname.compare(0, 2, "a ") == 0)
+	{
+		name += ", " + name.substr(0, 1);
+		name.erase(0, 2);
+	}
+
+	return name;
+}
+
+#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+static void GetNiceNameFromGlml(FMEntry *fm)
+{
+	vector<string> list;
+	if (!GetDocFilesFromArch(fm, list))
+		return;
+
+	for (size_t i = 0; i < list.size(); ++i)
+	{
+		if (IsGlmlFile(list[i]))
+		{
+			char *data;
+			int n;
+			if ( !FmReadFileToBuffer(fm, list[i].c_str(), data, n) )
+				return;
+
+			fm->nicename = GlmlGetTitle(data);
+			delete[] data;
+			return;
+		}
+	}
 }
 #endif
 
@@ -10913,27 +10884,35 @@ show_popup:
 
 // display a generic html popup where inside a standard format, 'html_body' contains html code for the "interior"
 // returns url of any clicked link contained in the supplied body
-static const char* GenericHtmlTextPopup(const char *caption, const char *html_body, int W, int maxH)
+static const char* GenericHtmlTextPopup(const char *caption, const char *html_body, int W, int maxH, BOOL scale)
+{
+	if (scale)
+	{
+		W = SCALECFG(W);
+		maxH = SCALECFG(maxH);
+	}
+
+	int H = pMainWnd->h() - 40;
+	if (H >= maxH)
+		H = maxH;
+
+	return GenericHtmlTextPopupFull(caption, html_body, W, H, FALSE);
+}
+
+// unrestrained version of GenericHtmlTextPopup
+static const char* GenericHtmlTextPopupFull(const char *caption, const char *html_body, int W, int H, BOOL scale)
 {
 	if (!html_body)
 		return NULL;
 
-	W = SCALECFG(W);
-	maxH = SCALECFG(maxH);
-
-	int X = 0;
-	int Y = 0;
-	int H = pMainWnd->h() - 40;
-
-	const int MAX_H = maxH;
-
-	if (H >= MAX_H)
-		H = MAX_H;
+	if (scale)
+	{
+		W = SCALECFG(W);
+		H = SCALECFG(H);
+	}
 
 	string html;
 	char buff[256];
-
-	//
 
 	const char *header_part1 =
 		"<html><body bgcolor=\"%s\" link=\"%s\">"
@@ -10966,8 +10945,6 @@ static const char* GenericHtmlTextPopup(const char *caption, const char *html_bo
 
 	_snprintf_s(buff, sizeof(buff), _TRUNCATE, footer, DARK() ? "#035493" : "#4C90D4");
 	html.append(buff);
-
-	//
 
 	return Fl_FM_Descr_Popup::popup(pMainWnd, W, H, html.c_str());
 }
@@ -12723,7 +12700,7 @@ static BOOL ValidateFmPath()
 	if ( !fl_choice($("The FM path \"%s\" was not found or a valid directory.\nCreate the directory?"), $("Exit"), fl_yes, NULL, g_pFMSelData->sRootPath) )
 		return FALSE;
 
-	if ( !_mkdir(g_pFMSelData->sRootPath) )
+	if ( !mkdir_parents(g_pFMSelData->sRootPath) )
 		return TRUE;
 
 	fl_alert($("Failed to create the FM path \"%s\", create it or configure a different path and run again."), g_pFMSelData->sRootPath);
@@ -13298,6 +13275,7 @@ static void ShowStartupMessage()
 	ShowBusyCursor(TRUE);
 
 	// pump messages so window becomes visible
+	// TODO: Probably actually fix this to show the window immediately?
 	while ( Fl::readqueue() );
 	Fl::wait(50.0/1000.0);
 
@@ -13392,7 +13370,7 @@ extern "C" int FMSELAPI SelectFM(sFMSelectorData *data)
 	g_bRunningEditor = (data->sGameVersion && *data->sGameVersion) && !strncmp(data->sGameVersion, "DromEd", 6);
 	g_bRunningShock = (data->sGameVersion && *data->sGameVersion) && strstr(data->sGameVersion, "Shock");
 #ifdef SUPPORT_T3
-	g_bRunningThief3 = !g_bRunningEditor && !g_bRunningShock && (data->sGameVersion && *data->sGameVersion) && !strncmp(data->sGameVersion, "Thief 3", 7);
+	g_bRunningThief3 = (data->sGameVersion && *data->sGameVersion) && !strncmp(data->sGameVersion, "Thief 3", 7);
 #endif
 
 	PrepareLocalization();

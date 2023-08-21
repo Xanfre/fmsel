@@ -20,11 +20,6 @@
 #include <time.h>
 
 
-#if defined(SUPPORT_T3) && !defined(BOOL)
-typedef int BOOL;
-#endif
-
-
 void TermArchiveSystem();
 
 // check if file type is a supported archive format ('ext' is "ZIP" etc.)
@@ -35,10 +30,11 @@ bool GetUnpackedArchiveSize(const char *archive, unsigned __int64 &sz, unsigned 
 
 // get a list of files, fl_filename_list counterpart for archives, only looks for files in the archive root since
 // that's all we care about, optionally returns list with file timestamps (1:1 indexing with 'list')
-#ifdef SUPPORT_T3
-int ListFilesInArchiveRoot(const char *archive, std::vector<std::string> &list, std::vector<time_t> *timestamps = NULL, BOOL incfma = 0);
-#else
 int ListFilesInArchiveRoot(const char *archive, std::vector<std::string> &list, std::vector<time_t> *timestamps = NULL);
+
+#ifdef SUPPORT_T3
+// generalized version of ListFilesInArchiveRoot, which looks for files while pruning at the specified depth (root being depth 0)
+int ListFilesInArchivePruned(const char *archive, unsigned int maxdepth, std::vector<std::string> &list, std::vector<time_t> *timestamps = NULL);
 #endif
 
 // check if sepcified file exists in archive (if 'fname' contains dirs then it's assumed to use OS specific separators)
