@@ -13274,10 +13274,14 @@ static void ShowStartupMessage()
 
 	ShowBusyCursor(TRUE);
 
+#ifdef _WIN32
 	// pump messages so window becomes visible
-	// TODO: Probably actually fix this to show the window immediately?
 	while ( Fl::readqueue() );
 	Fl::wait(50.0/1000.0);
+#else
+	w->wait_for_expose();
+	Fl::flush();
+#endif
 
 	fl_cursor(FL_CURSOR_WAIT);
 }
