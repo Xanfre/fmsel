@@ -19,8 +19,8 @@ TARGET_OS ?= $(OS)
 
 CFLAGS_ALL = -O2 $(CFLAGS)
 CXXFLAGS_ALL = -O2 $(CXXFLAGS)
-CPPFLAGS_C_ALL = -std=c99 -Wall -Wno-unused $(CPPFLAGS)
-CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wno-unused -Wno-format-security $(CPPFLAGS)
+CPPFLAGS_C_ALL = -std=c99 -Wall -Wno-unused-result $(CPPFLAGS)
+CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wno-unused -Wno-unused-result -Wno-format-security $(CPPFLAGS)
 LDFLAGS_ALL = $(L7ZIP_LIB) $(LDFLAGS)
 
 ifeq ($(TARGET_OS),Windows_NT)
@@ -31,7 +31,13 @@ endif
 else
 	CFLAGS_ALL += -fPIC
 	CXXFLAGS_ALL += -fPIC
-	CPPFLAGS_CXX_ALL += -D_LARGEFILE_SOURCE -DLARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -DSYSTEM_UTF8 -D__int64="long long int"
+	CPPFLAGS_CXX_ALL += -D_LARGEFILE_SOURCE -DLARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D__int64="long long int"
+ifneq ($(SYSTEM_UTF8),)
+	CPPFLAGS_CXX_ALL += -DSYSTEM_UTF8
+endif
+ifneq ($(USE_PATH_MAX),)
+	CPPFLAGS_CXX_ALL += -DUSE_PATH_MAX
+endif
 endif
 ifneq ($(SUPPORT_T3),)
 	CPPFLAGS_CXX_ALL += -DSUPPORT_T3

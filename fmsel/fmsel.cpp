@@ -125,7 +125,7 @@ static const char *TAGS_LABEL = "tags:";
 static const char *RATING_COL_LABEL = "Rating";
 
 
-#define USER_CLR		96
+#define USER_CLR			96
 #define TOGBTN_DN_CLR		(Fl_Color)USER_CLR
 #define HTML_POPUP_BOX		FL_FREE_BOXTYPE
 #define COMPLETION_LIST_BOX	((Fl_Boxtype)(FL_FREE_BOXTYPE+1))
@@ -147,7 +147,11 @@ static const char *RATING_COL_LABEL = "Rating";
 #endif
 
 #ifndef MAX_PATH
+#if !defined(_WIN32) && defined(PATH_MAX) && defined(USE_PATH_MAX)
+#define MAX_PATH PATH_MAX
+#else
 #define MAX_PATH 260
+#endif
 #endif
 
 #define MAX_PATH_BUF (MAX_PATH+1)
@@ -4243,7 +4247,8 @@ static int ListFilesInDirPruned(const char *path, unsigned int maxdepth, std::ve
 			for ( size_t j=0; j<sublist.size(); ++j )
 			{
 				// use the correct dir separator
-				if (_snprintf_s(path_sub + len - 1, sizeof(path_sub) - len + 1, _TRUNCATE, DIRSEP "%s", sublist[j].c_str()) == -1)
+				if (_snprintf_s(path_sub, sizeof(path_sub), _TRUNCATE, "%s", f->d_name) == -1
+					|| _snprintf_s(path_sub + len - 1, sizeof(path_sub) - len + 1, _TRUNCATE, DIRSEP "%s", sublist[j].c_str()) == -1)
 					continue;
 				list.push_back(path_sub);
 			}
