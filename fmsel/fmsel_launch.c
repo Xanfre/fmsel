@@ -39,12 +39,18 @@
 // prototypes
 int StartFMSel(const char *game, const char *rootPath, const char *lang,
 	const char *exited, const int rootLen, const int nameLen,
-	const int modExcludeLen, const int langLen, const int pipePID);
+	const int modExcludeLen, const int langLen,
+#ifdef _WIN32
+	const unsigned long pipeFD
+#else
+	const int pipeFD
+#endif
+);
 void ShowError(const char *message, const int fatal);
 #ifdef _WIN32
-void WriteDataToPipe(const sFMSelectorData *data, const HANDLE pipePID);
+void WriteDataToPipe(const sFMSelectorData *data, const HANDLE pipeFD);
 #else
-void WriteDataToPipe(const sFMSelectorData *data, const int pipePID);
+void WriteDataToPipe(const sFMSelectorData *data, const int pipeFD);
 #endif
 
 /*
@@ -70,7 +76,13 @@ int main(const int argc, const char **argv)
 		strsSet ? argv[2] : NULL, strsSet ? argv[3] : "english",
 		argc >= 5 ? argv[4] : "false", sizesSet ? atoi(argv[5]) : PATH_MAX,
 		sizesSet ? atoi(argv[6]) : 1 << 7, sizesSet ? atoi(argv[7]) : PATH_MAX,
-		sizesSet ? atoi(argv[8]) : 1 << 6, 10 == argc ? atoi(argv[9]) : 0);
+		sizesSet ? atoi(argv[8]) : 1 << 6,
+#ifdef _WIN32
+		10 == argc ? strtoul(argv[9], NULL, 0) : 0
+#else
+		10 == argc ? atoi(argv[9]) : -1
+#endif
+	);
 }
 
 /*
@@ -80,7 +92,13 @@ int main(const int argc, const char **argv)
  */
 int StartFMSel(const char *game, const char *rootPath, const char *lang,
 	const char *exited, const int rootLen, const int nameLen,
-	const int modExcludeLen, const int langLen, const int pipePID)
+	const int modExcludeLen, const int langLen,
+#ifdef _WIN32
+	const unsigned long pipeFD
+#else
+	const int pipeFD
+#endif
+)
 {
 	// Check size lengths.
 	if (rootLen <= 0 || nameLen <= 0 || modExcludeLen <= 0 || langLen <= 0)
@@ -128,10 +146,13 @@ int StartFMSel(const char *game, const char *rootPath, const char *lang,
 	strncpy(data.sLanguage, lang, data.nLanguageLen - 1);
 	// Start FMSel and retrieve the error code.
 	const int ret = SelectFM(&data);
-#ifndef _WIN32
 	// Pipe resulting configuration back to specified PID.
-	if (pipePID > 0)
-		WriteDataToPipe(&data, pipePID);
+#ifdef _WIN32
+	if (0 != pipeFD)
+		WriteDataToPipe(&data, (HANDLE) pipeFD);
+#else
+	if (pipePID >= 0)
+		WriteDataToPipe(&data, pipeFD);
 #endif
 	// Free buffers.
 	free(data.sRootPath);
@@ -148,31 +169,31 @@ int StartFMSel(const char *game, const char *rootPath, const char *lang,
  */
 void ShowError(const char *message, const int fatal)
 {
+#ifdef _WIN32
 	if (fatal)
-	{
-		printf("\033[0;31m");
-		printf("Fatal Error:");
-	}
+		MessageBoxA(NULL, message, "Fatal Error", MB_ICONERROR | MB_OK);
 	else
-	{
-		printf("\033[0;33m");
-		printf("Warning:");
-	}
-	printf("\033[0m");
-	printf(" %s\n", message);
+		MessageBoxA(NULL, message, "Warning", MB_ICONWARNING | MB_OK);
+#else
+	if (fatal)
+		printf("\033[0;31mFatal Error:");
+	else
+		printf("\033[0;33mWarning:");
+	printf("\033[0m %s\n", message);
+#endif
 }
 
 /*
  * WriteDataToPipe:
  * Write the relevant (non-constant) data in the sFMSelectorData structure
  * to the write end of a pipe.
- * The write end of the pipe is specified by pipePID and the read end should
- * be closed prior to program invocation.
+ * The write end of the pipe is specified by pipeFD and the read end should be
+ * closed prior to program invocation.
  */
 #ifdef _WIN32
-void WriteDataToPipe(const sFMSelectorData *data, const HANDLE pipePID)
+void WriteDataToPipe(const sFMSelectorData *data, const HANDLE pipeFD)
 #else
-void WriteDataToPipe(const sFMSelectorData *data, const int pipePID)
+void WriteDataToPipe(const sFMSelectorData *data, const int pipeFD)
 #endif
 {
 	const size_t bufSize = data->nMaxRootLen + data->nMaxNameLen
@@ -196,10 +217,10 @@ void WriteDataToPipe(const sFMSelectorData *data, const int pipePID)
 		*((int *) bufPtr) = data->bForceLanguage;
 #ifdef _WIN32
 		DWORD bytesWritten;
-		if (!WriteFile(pipePID, buf, bufSize, &bytesWritten, NULL)
+		if (!WriteFile(pipeFD, buf, bufSize, &bytesWritten, NULL)
 			|| bufSize != bytesWritten)
 #else
-		if (bufSize != (size_t) write(pipePID, buf, bufSize))
+		if (bufSize != (size_t) write(pipeFD, buf, bufSize))
 #endif
 			ShowError("Full data not written to pipe.", FMSEL_L_ERR_WARN);
 		free(buf);
@@ -207,9 +228,9 @@ void WriteDataToPipe(const sFMSelectorData *data, const int pipePID)
 	else
 		ShowError("Could not allocate output buffer.", FMSEL_L_ERR_WARN);
 #ifdef _WIN32
-	if (!CloseHandle(pipePID))
+	if (!CloseHandle(pipeFD))
 #else
-	if (-1 == close(pipePID))
+	if (-1 == close(pipeFD))
 #endif
 		ShowError("Could not close write end of pipe.", FMSEL_L_ERR_WARN);
 }
