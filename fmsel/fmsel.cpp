@@ -33,6 +33,9 @@
 #include <direct.h>
 #include <io.h>
 #else
+#ifdef SYSTEM_UTF8
+#include <locale.h>
+#endif
 #include <unistd.h>
 #define rsize_t size_t
 #define _S_IREAD S_IREAD
@@ -204,7 +207,7 @@ static int tolower_utf(const char *str, int len, char *buf)
 // same as fl_utf_strncasecmp except 'n' specifies the lengths in raw number of bytes and not in unicode characters
 int strncasecmp_utf_b(const char *s1, const char *s2, int n)
 {
-	for (int i=0; n>0; i++)
+	while (n>0)
 	{
 		int l1, l2;
 
@@ -424,11 +427,11 @@ enum ImportMode
 
 #define MENU_SET(...) { ASSERT(menu_items < MAX_MENU_ITEMS); Fl_Menu_Item __mi = __VA_ARGS__; menu[menu_items++] = __mi; }
 
-#define MENU_ITEM_EX(_name, _id, _flgs) MENU_SET( { (_name), 0, NULL, (void*)(intptr_t)(_id), (_flgs), 0, FL_HELVETICA, FL_NORMAL_SIZE } )
-#define MENU_RITEM(_name, _id, _selected) if (1) { MENU_SET( { (_name), 0, NULL, (void*)(intptr_t)(_id), (_selected)?FL_MENU_INACTIVE:0, 0, (_selected)?FL_HELVETICA_BOLD:FL_HELVETICA, FL_NORMAL_SIZE } ); menu[menu_items-1].labeltype((_selected)?RADIO_SET_LABEL:RADIO_EMPTY_LABEL); }
+#define MENU_ITEM_EX(_name, _id, _flgs) MENU_SET( { (_name), 0, NULL, (void*)(intptr_t)(_id), (_flgs), 0, FL_HELVETICA, FL_NORMAL_SIZE, 0 } )
+#define MENU_RITEM(_name, _id, _selected) if (1) { MENU_SET( { (_name), 0, NULL, (void*)(intptr_t)(_id), (_selected)?FL_MENU_INACTIVE:0, 0, (_selected)?FL_HELVETICA_BOLD:FL_HELVETICA, FL_NORMAL_SIZE, 0 } ); menu[menu_items-1].labeltype((_selected)?RADIO_SET_LABEL:RADIO_EMPTY_LABEL); }
 #define MENU_TITEM(_name, _id, _selected) MENU_ITEM_EX(_name, _id, FL_MENU_TOGGLE|((_selected)?FL_MENU_VALUE:0));
-#define MENU_SUB(_name) MENU_SET( { (_name), 0, NULL, NULL, FL_SUBMENU, 0, FL_HELVETICA, FL_NORMAL_SIZE } )
-#define MENU_END() MENU_SET( { 0 } )
+#define MENU_SUB(_name) MENU_SET( { (_name), 0, NULL, NULL, FL_SUBMENU, 0, FL_HELVETICA, FL_NORMAL_SIZE, 0 } )
+#define MENU_END() MENU_SET( {} )
 
 #define MENU_MOD_DIV() menu[menu_items-1].flags |= FL_MENU_DIVIDER
 #define MENU_MOD_DISABLE(_cond) if (_cond) menu[menu_items-1].flags |= FL_MENU_INACTIVE
@@ -704,7 +707,7 @@ public:
 		g_bDbModified = TRUE;
 	}
 
-	const BOOL HasFilters() const
+	BOOL HasFilters() const
 	{
 		if (filtMinRating != -1 || filtMinPrio || filtShow != FSHOW_All || filtReleaseFrom != -1
 			|| filtReleaseTo != -1 || !filtName.empty())
@@ -713,7 +716,7 @@ public:
 		return HasTagFilters();
 	}
 
-	const BOOL HasTagFilters() const
+	BOOL HasTagFilters() const
 	{
 		for (int i=0; i<FOP_NUM_OPS; i++)
 			if ( !tagFilterList[i].empty() )
@@ -903,14 +906,14 @@ public:
 
 		if (filtReleaseFrom != -1)
 		{
-			struct tm t = {0};
+			struct tm t = {};
 			t.tm_year = (filtReleaseFrom>=80 ? 0 : 100) + filtReleaseFrom;
 			filtReleaseMinTime = _mkgmtime(&t);
 		}
 
 		if (filtReleaseTo != -1)
 		{
-			struct tm t = {0};
+			struct tm t = {};
 			t.tm_year = (filtReleaseTo>=80 ? 0 : 100) + filtReleaseTo;
 			t.tm_mon = 11;
 			t.tm_mday = 31;
@@ -2996,7 +2999,6 @@ static void RemoveDeadTagFilters(BOOL bRefreshList = TRUE)
 static void TrimLeft(char *s)
 {
 	const char *q = s;
-	int i = 0;
 	for (; isspace_(*q); q++);
 	if (q != s)
 		memmove(s, q, strlen(q)+1);
@@ -3311,12 +3313,7 @@ static BOOL ReadModIni(FMEntry *fm, const FMEntry *realfm)
 
 				// make sure it has a http prefix
 				if (!homepage.empty() && _strnicmp(homepage.c_str(), "http", 4))
-				{
-					if ( _strnicmp(homepage.c_str(), "https", 5) )
-						homepage = "https://" + homepage;
-					else
-						homepage = "http://" + homepage;
-				}
+					homepage = (homepage.c_str()[4] == 's' ? "https://" : "http://") + homepage;
 			}
 		}
 		else if ( !_stricmp(s, "[modName]") )
@@ -3580,7 +3577,7 @@ static BOOL FmFileExists(const FMEntry *fm, const char *fname)
 	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
 		return FALSE;
 
-	struct stat st = {0};
+	struct stat st = {};
 	return !stat(pathname, &st);
 }
 
@@ -3641,7 +3638,7 @@ static BOOL FmGetPhysicalFileFromArchive(FMEntry *fm, const char *filename, stri
 #ifdef SUPPORT_T3
 	// the source file may have a path, remove it for the temp file
 	string nm = filename;
-	unsigned int last_sep_pos = nm.find_last_of("/\\");
+	size_t last_sep_pos = nm.find_last_of("/\\");
 	if (last_sep_pos != string::npos)
 		nm.erase(0, last_sep_pos + 1);
 
@@ -4269,7 +4266,7 @@ static BOOL SetReleaseDateFromFile(FMEntry *fm, const char *fname, time_t tmMin,
 	if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name, fname) == -1)
 		return FALSE;
 
-	struct stat st = {0};
+	struct stat st = {};
 
 	if (!stat(pathname, &st) && st.st_mtime >= tmMin && st.st_mtime <= tmMax)
 	{
@@ -4480,7 +4477,7 @@ static void InitValidMinMaxDate(time_t &tmMin, time_t &tmMax)
 	// determine min and max timestamps that constitute a valid date (to filter out screwed vals)
 	// min is 1996 (when dark developement began), and max is today's date plus roughly a month
 
-	struct tm t = {0};
+	struct tm t = {};
 	t.tm_year = 1996 - 1900;
 	t.tm_mon = 4 - 1;
 	t.tm_mday = 1;
@@ -5044,7 +5041,7 @@ static BOOL BackupOptFileToArchive(FMEntry *fm, const char *fname, BOOL bSkipChe
 
 	if (!bSkipCheck)
 	{
-		struct stat st = {0};
+		struct stat st = {};
 		if ( stat(pathname, &st) )
 			return TRUE;
 	}
@@ -5119,7 +5116,7 @@ static BOOL BackupOptDirToArchive(FMEntry *fm, const char *dirname)
 	return bRet;
 }
 
-static void* BackupSavesThread(void *p)
+static void* BackupSavesThread(void *)
 {
 	for (std::list<FileQ>::iterator it=g_backupList.begin(); it!=g_backupList.end(); it++, StepProgress(1))
 		if ( !AddFileToArchive(it->fname, it->fname_rel) )
@@ -5263,7 +5260,6 @@ struct BackupDiffSetContext
 static void* BackupDiffSetThread(void *p)
 {
 	BackupDiffSetContext *ctxt = (BackupDiffSetContext*)p;
-	FMEntry *fm = ctxt->fm;
 	vector<const FileDiffInfo*> &changed = *ctxt->changed;
 
 	for (int i=0; i<(int)changed.size(); i++, StepProgress(1))
@@ -5541,7 +5537,7 @@ static void* MP3Thread(void *p)
 
 		InitWavFile(fwav);
 
-		sMp3data mp3data = {0};
+		sMp3data mp3data = {};
 		short pcm_l[1152] = {0}, pcm_r[1152] = {0};
 		short pcm_lr[1152*2];
 		unsigned char buf[1024];
@@ -6052,7 +6048,7 @@ static BOOL InstallFM(FMEntry *fm)
 	string bakarchive = fm->GetBakArchiveFilePath();
 
 	// make sure the archive is available
-	struct stat st = {0};
+	struct stat st = {};
 	if (stat(archivepath.c_str(), &st) || !(st.st_mode & S_IREAD))
 	{
 		fl_alert($("Failed to find archive file \"%s\"."), archivepath.c_str());
@@ -6290,7 +6286,6 @@ static BOOL EnumFileDiffInfo(const char *path, int relname_start)
 	BOOL bRet = TRUE;
 
 	string s;
-	struct stat st = {0};
 	FileDiffInfo info;
 
 	for (int i=0; i<nFiles; i++)
@@ -6344,7 +6339,7 @@ static BOOL EnumFileDiffInfo(const char *path, int relname_start)
 	return bRet;
 }
 
-static bool ClearIdenticalEnumeratedArchiveFile(const char *fname, unsigned __int64 fsize, time_t ftime, void *p)
+static bool ClearIdenticalEnumeratedArchiveFile(const char *fname, unsigned __int64 fsize, time_t ftime, void *)
 {
 	ASSERT(p != NULL);
 
@@ -6662,7 +6657,7 @@ static void ViewArchiveContents(FMEntry *fm)
 
 	// list backup archive contents if available
 	string bakarchive = fm->GetBakArchiveFilePath();
-	struct stat st = {0};
+	struct stat st = {};
 	if ( !stat(bakarchive.c_str(), &st) )
 	{
 		html.append("<br><br><br><b><u>");
@@ -7409,8 +7404,8 @@ protected:
 	protected:
 		friend class ListWnd;
 
-		virtual int item_width(void *p) const { return w() - Fl::scrollbar_size(); }
-		virtual int item_height(void *p) const { return ROW_HEIGHT; }
+		virtual int item_width(void *) const { return w() - Fl::scrollbar_size(); }
+		virtual int item_height(void *) const { return ROW_HEIGHT; }
 
 		virtual void *item_first() const
 		{
@@ -7688,7 +7683,7 @@ protected:
 			return Fl_Double_Window::handle(e);
 		}
 
-		static void selchange_cb(ListWidget *o, void *p)
+		static void selchange_cb(ListWidget *, void *p)
 		{
 			((ListWnd*)p)->handle_list_key(FL_Enter);
 		}
@@ -7757,6 +7752,7 @@ protected:
 					hide();
 					return 1;
 				}
+				// fall through
 			case _XK_ISO_Left_Tab:
 				// if nothing is selected in list then select first row
 				if ( !m_pList->value() )
@@ -7861,7 +7857,7 @@ protected:
 		return Fl_Input::handle(e);
 	}
 
-	static void change_cb(Fl_Widget *o, void *p) { ((Fl_FM_Tag_Input*)o)->OnChange(); }
+	static void change_cb(Fl_Widget *o, void *) { ((Fl_FM_Tag_Input*)o)->OnChange(); }
 
 	void HideSuggestions()
 	{
@@ -8218,7 +8214,6 @@ public:
 
 			const int W = col_width(0);
 			const int X = 0;
-			const int Y = 0;
 			const int XX = X+4;
 			const int WW = (X+W) - XX - 2;
 
@@ -8257,7 +8252,6 @@ public:
 
 			const int W = col_width(0);
 			const int X = 0;
-			const int Y = 0;
 			const int XX = X+4;
 			const int WW = (X+W) - XX - 2;
 
@@ -8619,16 +8613,16 @@ public:
 
 Fl_FM_List::ColDef Fl_FM_List::s_columns[COL_NUM_COLS] =
 {
-	{"Name", 364, 150, 0, TRUE, SORT_Name},
-	{"Pri", 30, -1, 26, TRUE, SORT_Priority},
-	{"Status", 50, -1, 0, TRUE, SORT_Status},
-	{"Last Played", 80, 60, 90, TRUE, SORT_LastPlayed},
-	{"Release Date", 80, 60, 90, TRUE, SORT_ReleaseDate},
-	{"Directory", 170, 60, 90, FALSE, SORT_DirName},
-	{"Archive", 230, 60, 90, FALSE, SORT_Archive}
+	{"Name", 364, 150, 0, TRUE, SORT_Name, 0},
+	{"Pri", 30, -1, 26, TRUE, SORT_Priority, 0},
+	{"Status", 50, -1, 0, TRUE, SORT_Status, 0},
+	{"Last Played", 80, 60, 90, TRUE, SORT_LastPlayed, 0},
+	{"Release Date", 80, 60, 90, TRUE, SORT_ReleaseDate, 0},
+	{"Directory", 170, 60, 90, FALSE, SORT_DirName, 0},
+	{"Archive", 230, 60, 90, FALSE, SORT_Archive, 0}
 };
 
-int Fl_FM_List::s_column_idx[COL_NUM_COLS] = {0};
+int Fl_FM_List::s_column_idx[COL_NUM_COLS] = {};
 
 
 void Fl_FM_List::draw_cell(TableContext context, int R, int C, int X, int Y, int W, int H)
@@ -9586,7 +9580,7 @@ protected:
 	int m_buttonheight;
 
 protected:
-	static void addtag_cb(Fl_Widget *o, void *p) { ((Fl_FM_TagFilter_Group*)p)->OnAddTagFilter(); }
+	static void addtag_cb(Fl_Widget *, void *p) { ((Fl_FM_TagFilter_Group*)p)->OnAddTagFilter(); }
 
 	virtual BOOL IsTagAdded(const char *tag) const
 	{
@@ -10840,8 +10834,6 @@ static string GenerateHtmlSummary(FMEntry *fm)
 
 static void ViewSummary(FMEntry *fm)
 {
-	int X = 0;
-	int Y = 0;
 	int W = pMainWnd->w() - 40;
 	int H = pMainWnd->h() - 40;
 
@@ -11046,28 +11038,28 @@ static void ViewAbout()
 
 static Fl_Menu_Item g_mnuFiltRating[] =
 {
-	{ "*", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "0", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "0.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "1", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "1.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "2", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "2.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "3", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "3.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "4", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "4.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ 0 }
+	{ "*", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "0", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "0.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "1", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "1.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "2", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "2.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "3", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "3.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "4", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "4.5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "5", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ }
 };
 
 static Fl_Menu_Item g_mnuFiltPrio[] =
 {
-	{ "*", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ 0 }
+	{ "*", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ }
 };
 
 #ifdef LOCALIZATION_SUPPORT
@@ -11081,54 +11073,54 @@ static char TAGPRESET_CAT_CUST[64] = "<custom>";
 //       own tags in any language they want but the FMSel defined standard tags should strive for a single global standard.
 static Fl_Menu_Item g_mnuTagPresets[] =
 {
-	{ "author:", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "contest:", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "genre:", 0, NULL, NULL, FL_SUBMENU, 0, FL_HELVETICA, 12 },
-		{ TAGPRESET_CAT_CUST, 0, NULL, (void*)"genre:", FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
-		{ "action", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
-		{ "crime", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
-		{ "horror", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
-		{ "mystery", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
-		{ "puzzle", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12 },
-		{ 0 },
-	{ "language:", 0, NULL, NULL, FL_SUBMENU, 0, FL_HELVETICA, 12 },
-		{ TAGPRESET_CAT_CUST, 0, NULL, (void*)"language:", FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
-		{ "English", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Czech", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Dutch", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "French", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "German", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Hungarian", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Italian", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Japanese", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Polish", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Russian", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ "Spanish", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12 },
-		{ 0 },
-	{ "series:", 0, NULL, NULL, FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
-	//{ "setting:", 0, NULL, NULL, FL_MENU_DIVIDER, 0, FL_HELVETICA, 12 },
+	{ "author:", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "contest:", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "genre:", 0, NULL, NULL, FL_SUBMENU, 0, FL_HELVETICA, 12, 0 },
+		{ TAGPRESET_CAT_CUST, 0, NULL, (void*)"genre:", FL_MENU_DIVIDER, 0, FL_HELVETICA, 12, 0 },
+		{ "action", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "crime", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "horror", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "mystery", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "puzzle", 0, NULL, (void*)"genre:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ },
+	{ "language:", 0, NULL, NULL, FL_SUBMENU, 0, FL_HELVETICA, 12, 0 },
+		{ TAGPRESET_CAT_CUST, 0, NULL, (void*)"language:", FL_MENU_DIVIDER, 0, FL_HELVETICA, 12, 0 },
+		{ "English", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "Czech", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "Dutch", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "French", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "German", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "Hungarian", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "Italian", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "Japanese", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "Polish", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "Russian", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ "Spanish", 0, NULL, (void*)"language:", 0, 0, FL_HELVETICA, 12, 0 },
+		{ },
+	{ "series:", 0, NULL, NULL, FL_MENU_DIVIDER, 0, FL_HELVETICA, 12, 0 },
+	//{ "setting:", 0, NULL, NULL, FL_MENU_DIVIDER, 0, FL_HELVETICA, 12, 0 },
 
-	{ "campaign", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "demo", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "long", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "other protagonist", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "short", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ "unknown author", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12 },
-	{ 0 }
+	{ "campaign", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "demo", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "long", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "other protagonist", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "short", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ "unknown author", 0, NULL, NULL, 0, 0, FL_HELVETICA, 12, 0 },
+	{ }
 };
 
 #ifdef LOCALIZATION_SUPPORT
 // however we can display localized tags, as long as long as they're kept in english internally and the db
 // this is a 1:1 array to g_mnuTagPresets containing the original untranslated menu item names
-static const char* g_tagPresetsEnglish[sizeof(g_mnuTagPresets)/sizeof(g_mnuTagPresets[0])] = {0};
+static const char* g_tagPresetsEnglish[sizeof(g_mnuTagPresets)/sizeof(g_mnuTagPresets[0])] = {};
 // just an array to keep extra allocated strings for localized categories (used to free mem)
-static const char* g_tagPresetsExtraAllocated[sizeof(g_mnuTagPresets)/sizeof(g_mnuTagPresets[0])] = {0};
+static const char* g_tagPresetsExtraAllocated[sizeof(g_mnuTagPresets)/sizeof(g_mnuTagPresets[0])] = {};
 #endif
 
 static Fl_Menu_Item g_mnuTagPresetsLabel[] =
 {
-	{ "<Tag Presets>", 0, NULL, NULL, 0, 0, FL_HELVETICA_BOLD, 11 },
-	{ 0 }
+	{ "<Tag Presets>", 0, NULL, NULL, 0, 0, FL_HELVETICA_BOLD, 11, 0 },
+	{ }
 };
 
 
@@ -11652,14 +11644,14 @@ int Fl_FM_TagEd_Window::handle(int e)
 }
 
 
-static void OnTagEdAddTag(Fl_Button *o, void *p)
+static void OnTagEdAddTag(Fl_Button *, void *)
 {
 	Fl::focus(pTagEdInput);
 
 	OnAddCustomTag(pTagEdInput, pTagEdInput->user_data());
 }
 
-static void OnAddCustomTag(Fl_FM_Tag_Input *o, void *p)
+static void OnAddCustomTag(Fl_FM_Tag_Input *o, void *)
 {
 	const char *tag = o->value();
 	if (!tag || !*tag)
@@ -11732,7 +11724,7 @@ static void OnAddCustomTag(Fl_FM_Tag_Input *o, void *p)
 	free(s);
 }
 
-static void DelayedCompletionList(void *p)
+static void DelayedCompletionList(void *)
 {
 	if (pTagEdWnd && pTagEdWnd->visible())
 		pTagEdInput->OnChange();
@@ -11751,7 +11743,7 @@ static void SetAddTagInputText(const char *s)
 		Fl::add_timeout(50.0/1000.0, DelayedCompletionList, NULL);
 }
 
-static void OnTagPreset(Fl_Choice *o, void *p)
+static void OnTagPreset(Fl_Choice *o, void *)
 {
 	if (o->mvalue() == g_mnuTagPresetsLabel)
 		return;
@@ -11785,7 +11777,7 @@ static void OnTagPreset(Fl_Choice *o, void *p)
 		SetAddTagInputText(cat);
 }
 
-static void OnTagEdViewInfoFile(Fl_Button *o, void *p)
+static void OnTagEdViewInfoFile(Fl_Button *, void *)
 {
 	FMEntry *fm = g_pTagEdFM;
 
@@ -11838,7 +11830,7 @@ invalid_date:
 			return 2;
 		}
 
-		struct tm t = {0};
+		struct tm t = {};
 		t.tm_year = y - 1900;
 		t.tm_mon = m - 1;
 		t.tm_mday = d;
@@ -11939,7 +11931,7 @@ static void CloseTagEditor()
 	pTagEdWnd->hide();
 }
 
-static void OnCancelTagEditor(Fl_Button *o, void *p)
+static void OnCancelTagEditor(Fl_Button *, void *)
 {
 	if (TagEditorHasChanges() && !fl_choice($("Discard changes?"), fl_cancel, fl_ok, NULL) )
 		return;
@@ -11947,7 +11939,7 @@ static void OnCancelTagEditor(Fl_Button *o, void *p)
 	CloseTagEditor();
 }
 
-static void OnOkTagEditor(Fl_Button *o, void *p)
+static void OnOkTagEditor(Fl_Button *, void *)
 {
 	// check if add tag input field has contents (to avoid common mistake of forgetting to actually add the tag)
 	const char *val = pTagEdInput->value();
@@ -11991,7 +11983,7 @@ static void OnOkTagEditor(Fl_Button *o, void *p)
 		int m = atoi( pTagEdRelMonth->value() );
 		int d = atoi( pTagEdRelDay->value() );
 
-		struct tm t = {0};
+		struct tm t = {};
 		t.tm_year = y - 1900;
 		t.tm_mon = m - 1;
 		t.tm_mday = d;
@@ -12413,17 +12405,17 @@ static void CloseMainWindow()
 }
 
 
-static void OnClose(Fl_Widget *o, void *p)
+static void OnClose(Fl_Widget *, void *)
 {
 	CloseMainWindow();
 }
 
-static void OnResetFilters(Fl_Button *o, void *p)
+static void OnResetFilters(Fl_Button *, void *)
 {
 	g_cfg.ResetFilters();
 }
 
-static void OnRefreshFilters(Fl_Button *o, void *p)
+static void OnRefreshFilters(Fl_Button *, void *)
 {
 	RefreshFilteredDb();
 }
@@ -12443,7 +12435,7 @@ static void DelayedFilterNameChange(void *p)
 	DoFilterNameChanged((Fl_FM_Filter_Input*)p);
 }
 
-static void OnFilterName(Fl_FM_Filter_Input *o, void *p)
+static void OnFilterName(Fl_FM_Filter_Input *o, void *)
 {
 	// this gets called when app is closing, avoid doing anything in that case
 	if ( !pMainWnd->visible() )
@@ -12480,21 +12472,21 @@ static void OnFilterToggle(Fl_FM_Filter_Button *o, void *p)
 	}
 }
 
-static void OnFilterRating(Fl_Choice *o, void *p)
+static void OnFilterRating(Fl_Choice *o, void *)
 {
 	const int n = o->value();
 
 	g_cfg.SetFilterRating(n - 1);
 }
 
-static void OnFilterPriority(Fl_Choice *o, void *p)
+static void OnFilterPriority(Fl_Choice *o, void *)
 {
 	const int n = o->value();
 
 	g_cfg.SetFilterPriority(n);
 }
 
-static void OnFilterRelFrom(Fl_FM_Filter_Input *o, void *p)
+static void OnFilterRelFrom(Fl_FM_Filter_Input *o, void *)
 {
 	// this could get called when app is closing, avoid doing anything in that case
 	if ( !pMainWnd->visible() )
@@ -12517,7 +12509,7 @@ static void OnFilterRelFrom(Fl_FM_Filter_Input *o, void *p)
 		g_cfg.SetFilterRelease(-1, g_cfg.filtReleaseTo);
 }
 
-static void OnFilterRelTo(Fl_FM_Filter_Input *o, void *p)
+static void OnFilterRelTo(Fl_FM_Filter_Input *o, void *)
 {
 	// this could get called when app is closing, avoid doing anything in that case
 	if ( !pMainWnd->visible() )
@@ -12540,7 +12532,7 @@ static void OnFilterRelTo(Fl_FM_Filter_Input *o, void *p)
 		g_cfg.SetFilterRelease(g_cfg.filtReleaseFrom, -1);
 }
 
-static void OnPlayOM(Fl_Button *o, void *p)
+static void OnPlayOM(Fl_Button *, void *)
 {
 	g_appReturn = kSelFMRet_Cancel;
 
@@ -12630,17 +12622,17 @@ static void PlayFM(BOOL bSetInProgress)
 	CloseMainWindow();
 }
 
-static void OnPlayFM(Fl_FM_Return_Button *o, void *p)
+static void OnPlayFM(Fl_FM_Return_Button *, void *)
 {
 	PlayFM(FALSE);
 }
 
-static void OnStartFM(Fl_Button *o, void *p)
+static void OnStartFM(Fl_Button *, void *)
 {
 	PlayFM(TRUE);
 }
 
-static void OnExit(Fl_Button *o, void *p)
+static void OnExit(Fl_Button *, void *)
 {
 	g_appReturn = kSelFMRet_ExitGame;
 	CloseMainWindow();
@@ -12697,7 +12689,7 @@ static BOOL ValidateFmPath()
 {
 	// make sure the FM path exists
 
-	struct stat st = {0};
+	struct stat st = {};
 
 	if (!stat(g_pFMSelData->sRootPath, &st) && (st.st_mode & S_IFDIR))
 		return TRUE;
@@ -12738,7 +12730,7 @@ static BOOL ValidateArchiveRepo(BOOL bFirstRun)
 
 	// make sure that archive path is found
 
-	struct stat st = {0};
+	struct stat st = {};
 
 	if (!stat(g_cfg.archiveRepo.c_str(), &st) && (st.st_mode & S_IFDIR))
 	{
@@ -13372,6 +13364,10 @@ extern "C" int FMSELAPI SelectFM(sFMSelectorData *data)
 	{
 		return kSelFMRet_Cancel;
 	}
+
+#if !defined(_WIN32) && defined(SYSTEM_UTF8)
+	setlocale(LC_ALL, "");
+#endif
 
 	g_pFMSelData = data;
 	CleanDirSlashes(g_pFMSelData->sRootPath);

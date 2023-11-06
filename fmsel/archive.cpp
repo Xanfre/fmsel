@@ -198,15 +198,10 @@ public:
 #else
 		int count = fread(data, 1, size, m_pFile);
 #endif
-		if (count >= 0)
-		{
-			if (processedSize != NULL)
-				*processedSize = count;
+		if (processedSize != NULL)
+			*processedSize = count;
 
-			return 0;
-		}
-
-		return 1;
+		return 0;
 	}
 
 	virtual int Seek(__int64 offset, unsigned int seekOrigin, unsigned __int64 *newPosition)
@@ -256,7 +251,6 @@ protected:
 protected:
 	void InitFileTime(C7ZipArchiveItem *pItem, time_t tmFiletimeFallback)
 	{
-		time_t tm = 0;
 		unsigned __int64 val = 0;
 
 		if (pItem->GetFileTimeProperty(lib7zip::kpidMTime, val)
@@ -398,21 +392,14 @@ public:
 		int count = fwrite(data, 1, size, m_pFile);
 #endif
 
-		if (count >= 0)
-		{
-			if ((unsigned int)count < size)
-				m_bWriteError = TRUE;
+		if ((unsigned int)count < size)
+			m_bWriteError = TRUE;
 
-			if (processedSize != NULL)
-				*processedSize = count;
+		if (processedSize != NULL)
+			*processedSize = count;
 
-			m_nFileSize += count;
-			return 0;
-		}
-
-		m_bWriteError = TRUE;
-
-		return 1;
+		m_nFileSize += count;
+		return 0;
 	}
 
 	virtual int Seek(__int64 offset, unsigned int seekOrigin, unsigned __int64 *newPosition)
@@ -433,7 +420,7 @@ public:
 #endif
 	}
 
-	virtual int SetSize(unsigned __int64 size) { return 0; }
+	virtual int SetSize(unsigned __int64) { return 0; }
 };
 
 //
@@ -487,7 +474,7 @@ public:
 		return 0;
 	}
 
-	virtual int SetSize(unsigned __int64 size) { return 0; }
+	virtual int SetSize(unsigned __int64) { return 0; }
 };
 
 //
@@ -502,15 +489,15 @@ public:
 	{
 		m_nFileSize = 0;
 	}
-	NullOutStream(const char *fileName)
+	NullOutStream(const char *)
 	{
 		m_nFileSize = 0;
 	}
-	NullOutStream(const wchar_t *fileName)
+	NullOutStream(const wchar_t *)
 	{
 		m_nFileSize = 0;
 	}
-	NullOutStream(const wstring &wdest, const wstring &itempath, wstring &tmp)
+	NullOutStream(const wstring &, const wstring &, wstring &)
 	{
 		m_nFileSize = 0;
 	}
@@ -518,7 +505,7 @@ public:
 	bool IsValid() const { return TRUE; }
 	int GetFileSize() const { return m_nFileSize; }
 
-	virtual int Write(const void *data, unsigned int size, unsigned int *processedSize)
+	virtual int Write(const void *, unsigned int size, unsigned int *processedSize)
 	{
 		if (processedSize != NULL)
 			*processedSize = size;
@@ -526,14 +513,14 @@ public:
 		return 0;
 	}
 
-	virtual int Seek(__int64 offset, unsigned int seekOrigin, unsigned __int64 *newPosition)
+	virtual int Seek(__int64, unsigned int, unsigned __int64 *newPosition)
 	{
 		if (newPosition)
 			*newPosition = 0;
 		return 0;
 	}
 
-	virtual int SetSize(unsigned __int64 size) { return 0; }
+	virtual int SetSize(unsigned __int64) { return 0; }
 };
 
 //
@@ -650,7 +637,7 @@ static C7ZipArchive* OpenArchive(const char *archive, time_t *mtime = NULL)
 	return g_pArchive->pArchive;
 }
 
-static void CloseArchive(C7ZipArchive *pArchive)
+static void CloseArchive(C7ZipArchive *)
 {
 	// do nothing
 }
@@ -810,7 +797,7 @@ uLong filetime(const char *f, tm_zip *tmzip, uLong *dt)
   return ret;
 }
 #else
-uLong filetime(const char *f, tm_zip *tmzip, uLong *dt)
+uLong filetime(const char *f, tm_zip *tmzip, uLong *)
 {
   int ret=0;
   struct stat s;        /* results of stat() */
@@ -937,7 +924,7 @@ static bool AddFileToZip(const char *fname, const char *zipfname)
 	}
 
 	const int compress_level = Z_DEFAULT_COMPRESSION;
-	zip_fileinfo zi = {0};
+	zip_fileinfo zi = {};
 
 	filetime(fname, &zi.tmz_date, &zi.dosDate);
 

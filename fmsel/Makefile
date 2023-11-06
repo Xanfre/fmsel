@@ -19,12 +19,13 @@ TARGET_OS ?= $(OS)
 
 CFLAGS_ALL = -O2 $(CFLAGS)
 CXXFLAGS_ALL = -O2 $(CXXFLAGS)
-CPPFLAGS_C_ALL = -std=c99 -Wall -Wno-unused-result $(CPPFLAGS)
-CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wno-unused -Wno-unused-result -Wno-format-security $(CPPFLAGS)
+CPPFLAGS_C_ALL = -std=c99 -Wall -Wextra $(CPPFLAGS)
+CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wextra -Wno-cast-function-type -Wno-format-security $(CPPFLAGS)
 LDFLAGS_ALL = $(L7ZIP_LIB) $(LDFLAGS)
 
 ifeq ($(TARGET_OS),Windows_NT)
-	CPPFLAGS_CXX_ALL += -I../zlibcomp
+	CPPFLAGS_C_ALL += -Wno-unused -DNO_VIZ
+	CPPFLAGS_CXX_ALL += -Wno-unused -I../zlibcomp
 ifneq ($(STATIC),)
 	CPPFLAGS_CXX_ALL += -DSTATIC
 endif
@@ -94,11 +95,14 @@ ZLIB_OBJS = $(objdir)/adler32.o \
 else
 ZLIB_OBJS =
 endif
+
 ifneq ($(SUPPORT_T3),)
 	FMSEL_OBJS += $(objdir)/glml.o
 else ifneq ($(SUPPORT_GLML),)
 	FMSEL_OBJS += $(objdir)/glml.o
 endif
+
+.PHONY: all install clean install_link install_tools
 
 ifeq ($(BUILD_TOOLS),)
 all: $(objdir) $(SONAME)
@@ -121,6 +125,7 @@ clean:
 
 install_link:
 ifneq ($(SONAME),libfmsel.so)
+	mkdir -p $(DESTDIR)$(LIBDIR)
 	ln -s $(SONAME) $(DESTDIR)$(LIBDIR)/libfmsel.so
 endif
 
@@ -144,6 +149,29 @@ $(objdir)/%.o: %.cpp
 
 $(objdir)/%.o: %.c
 	$(CC) $(CFLAGS_ALL) $(CPPFLAGS_C_ALL) -c -o $@ $<
+
+$(objdir)/archive.o: archive.h os.h lang.h dbgutil.h
+$(objdir)/Fl_Html_View.o: Fl_Html_View.H flstring.h
+$(objdir)/fmsel.o: fmsel.h os.h archive.h lang.h dbgutil.h glml.h Fl_Html_View.H ./Fl_Table/Fl_Table_Row.H ./Fl_Table/Fl_Table.H mp3.h icons.h fl_mainwnd.h fl_taged.h dark_cmap.h fl_mainwnd.cpp.h fl_taged.cpp.h
+$(objdir)/lang.o: lang.h os.h dbgutil.h
+$(objdir)/mp3.o: mp3.h os.h lang.h dbgutil.h
+$(objdir)/os.o: lang.h os.h dbgutil.h
+$(objdir)/glml.o: glml.h
+
+$(objdir)/Fl_Table.o: ./Fl_Table/Fl_Table.H
+$(objdir)/Fl_Table_Row.o: ./Fl_Table/Fl_Table_Row.H ./Fl_Table/Fl_Table.H
+
+$(objdir)/fmsel_launch.o: fmsel.h
+
+$(objdir)/adler32.o: ../zlibcomp/zutil.h ../zlibcomp/zlib.h ../zlibcomp/zconf.h
+$(objdir)/compress.o: ../zlibcomp/zlib.h ../zlibcomp/zconf.h
+$(objdir)/crc32.o: ../zlibcomp/zutil.h ../zlibcomp/zlib.h ../zlibcomp/zconf.h ../zlibcomp/crc32.h
+$(objdir)/deflate.o: ../zlibcomp/deflate.h ../zlibcomp/zutil.h ../zlibcomp/zlib.h ../zlibcomp/zconf.h
+$(objdir)/ioapi.o: ../zlibcomp/zlib.h ../zlibcomp/zconf.h ../zlibcomp/ioapi.h
+$(objdir)/iowin32.o: ../zlibcomp/zlib.h ../zlibcomp/zconf.h ../zlibcomp/ioapi.h ../zlibcomp/iowin32.h
+$(objdir)/trees.o: ../zlibcomp/deflate.h ../zlibcomp/zutil.h ../zlibcomp/zlib.h ../zlibcomp/zconf.h ../zlibcomp/trees.h
+$(objdir)/zip.o: ../zlibcomp/zlib.h ../zlibcomp/zconf.h ../zlibcomp/zip.h ../zlibcomp/ioapi.h ../zlibcomp/crypt.h
+$(objdir)/zutil.o: ../zlibcomp/zutil.h ../zlibcomp/zlib.h ../zlibcomp/zconf.h
 
 $(SONAME): $(FMSEL_OBJS) $(FLTK_OBJS) $(ZLIB_OBJS)
 	$(CXX) $(CXXFLAGS_ALL) -shared $(LDFLAGS_ALL) $^ -o $@ $(LIBS)

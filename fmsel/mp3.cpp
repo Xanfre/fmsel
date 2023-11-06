@@ -164,7 +164,7 @@ bool InitMp3File(FILE *f)
 		return false;
 
 	// check if file is actually a WAV file with mp3 data
-	WAVHEADER hdr = {0};
+	WAVHEADER hdr = {};
 	fread(&hdr, 1, sizeof(DWORD)*5, f);
 
 	if (hdr.fcRIFF != MAKEFOURCC('R','I','F','F'))
@@ -224,7 +224,7 @@ bool InitMp3File(FILE *f)
 		return false;
 
 	int extra_data = 0;
-	WAVEFORMATEX wf = {0};
+	WAVEFORMATEX wf = {};
 
 	if (hdr.dwWaveSize >= 18)
 	{
@@ -260,7 +260,7 @@ bool InitMp3File(FILE *f)
 bool InitWavFile(FILE *f)
 {
 	// reserve file space for wav header
-	WAVHEADER hdr = {0};
+	WAVHEADER hdr = {};
 	return fwrite(&hdr, 1, sizeof(hdr), f) == sizeof(hdr);
 }
 
@@ -271,7 +271,7 @@ bool FinalizeWavFile(FILE *f, int nSampleRate, int nChannels)
 	const long fsize = ftell(f);
 	fseek(f, 0, SEEK_SET);
 
-	WAVHEADER hdr = {0};
+	WAVHEADER hdr = {};
 	hdr.fcRIFF = MAKEFOURCC('R','I','F','F');
 	hdr.dwFileSize = fsize - 8;
 	hdr.fcWAVE = MAKEFOURCC('W','A','V','E');

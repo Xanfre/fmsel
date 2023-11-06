@@ -57,9 +57,9 @@ BOOL WINAPI DllMain(HANDLE hInstance, ULONG reason, LPVOID reserved)
 #endif
 
 
+#ifdef _WIN32
 void WndInitOS(Fl_Window *pWnd)
 {
-#ifdef _WIN32
 	// make sure window isn't off-screen
 	POINT pt;
 	pt.x = pWnd->x();
@@ -73,18 +73,22 @@ void WndInitOS(Fl_Window *pWnd)
 			Fl::y() + ((Fl::h() - pWnd->h()) / 2)
 			);
 	}
-#endif
 }
+#else
+void WndInitOS(Fl_Window *) { }
+#endif
 
+#ifdef _WIN32
 void MainWndInitOS(Fl_Window *pMainWnd)
 {
-#ifdef _WIN32
 	// set window icon to that of the dark exe
 	pMainWnd->icon( (const void *)LoadImageA(fl_display, "APPICON", IMAGE_ICON, 0, 0, LR_DEFAULTSIZE/*|LR_SHARED*/) );
 
 	WndInitOS(pMainWnd);
-#endif
 }
+#else
+void MainWndInitOS(Fl_Window *) { }
+#endif
 
 void WaitOS(int ms)
 {
@@ -95,17 +99,19 @@ void WaitOS(int ms)
 #endif
 }
 
+#ifdef _WIN32
 void MainWndTermOS(Fl_Window *pMainWnd)
 {
-#ifdef _WIN32
 	if ( pMainWnd->icon() )
 	{
 		HICON hIcon = (HICON)pMainWnd->icon();
 		pMainWnd->icon((const void *)NULL);
 		DestroyIcon(hIcon);
 	}
-#endif
 }
+#else
+void MainWndTermOS(Fl_Window *) { }
+#endif
 
 void MainWndRestoreOS(Fl_Window *pMainWnd)
 {
@@ -116,21 +122,26 @@ void MainWndRestoreOS(Fl_Window *pMainWnd)
 #endif
 }
 
+#ifdef _WIN32
 void MainWndMaximizeOS(Fl_Window *pMainWnd)
 {
-#ifdef _WIN32
 	SendMessage(fl_xid(pMainWnd), WM_SYSCOMMAND, SC_MAXIMIZE, 0);
-#endif
 }
+#else
+void MainWndMaximizeOS(Fl_Window *) { }
+#endif
 
+#ifdef _WIN32
 BOOL MainWndIsMaximizedOS(Fl_Window *pMainWnd)
 {
-#ifdef _WIN32
 	return IsZoomed( fl_xid(pMainWnd) );
-#else
-	return FALSE;
-#endif
 }
+#else
+BOOL MainWndIsMaximizedOS(Fl_Window *)
+{
+	return FALSE;
+}
+#endif
 
 void FltkTermOS()
 {
@@ -145,9 +156,9 @@ unsigned int GetProcessIdOS()
 #endif
 }
 
+#ifdef _WIN32
 void WaitForProcessExitOS(unsigned int pid, int waitms)
 {
-#ifdef _WIN32
 	// wait for process to exit, at most 'waitms' but at least 250ms
 	const int MINWAIT = 250;
 	HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
@@ -166,10 +177,13 @@ void WaitForProcessExitOS(unsigned int pid, int waitms)
 	}
 	else
 		WaitOS(MINWAIT);
-#else
-	WaitOS(waitms);
-#endif
 }
+#else
+void WaitForProcessExitOS(unsigned int, int waitms)
+{
+	WaitOS(waitms);
+}
+#endif
 
 BOOL OpenFileWithAssociatedApp(const char *filename, const char *dirname)
 {
@@ -223,9 +237,9 @@ BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser)
 #endif
 }
 
+#ifdef _WIN32
 BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **pattern, const char *defext, const char *initial, char *result, int len, BOOL bOpenNoExist)
 {
-#ifdef _WIN32
 	wchar_t filter[1024];
 	char initial_[MAX_PATH];
 	wchar_t title_w[256];
@@ -286,7 +300,7 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 	result_w = new wchar_t[len];
 	fl_utf8towc(result, strlen(result), result_w, len);
 
-	OPENFILENAMEW ofn = {0};
+	OPENFILENAMEW ofn = {};
 	ofn.lStructSize = sizeof(ofn);
 	ofn.lpstrTitle = title ? title_w : NULL;
 	ofn.hwndOwner = parent ? Fl_X::i(parent)->xid : NULL;
@@ -323,7 +337,10 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 		return FALSE;
 
 	return TRUE;
+}
 #else
+BOOL FileDialog(Fl_Window *, BOOL bSave, const char *title, const char **pattern, const char *, const char *initial, char *result, int len, BOOL bOpenNoExist)
+{
 	// requires png lib, don't want to bloat the dll only for this dialog
 	/*static int init = 0;
 	if (!init)
@@ -371,7 +388,7 @@ retry:
 	if (!bSave && !bOpenNoExist)
 	{
 		// make sure file exists, otherwise return to dialog (emulate win32 open file dialog behavior)
-		struct stat st = {0};
+		struct stat st = {};
 		if (stat(s, &st) || (st.st_mode & S_IFDIR))
 		{
 			fl_alert($("%s\nFile not found.\nCheck the filename and try again."), s);
@@ -383,8 +400,8 @@ retry:
 	strcpy_s(result, len, s);
 
 	return TRUE;
-#endif
 }
+#endif
 
 BOOL GetFreeDiskSpaceOS(const char *path, unsigned __int64 &freeMB)
 {
@@ -394,7 +411,7 @@ BOOL GetFreeDiskSpaceOS(const char *path, unsigned __int64 &freeMB)
 		return FALSE;
 	freeMB = avail.QuadPart / (ULONGLONG)(1024*1024);
 #else
-	struct statvfs st;
+	struct statvfs st = {};
 	if (-1 == statvfs(path, &st))
 		return FALSE;
 	freeMB = (st.f_bsize*st.f_bavail) / (1024*1024);
@@ -432,7 +449,7 @@ BOOL GetFileMTimeOS(const char *fname, time_t &tm)
 	}
 	return FALSE;
 #else
-	struct stat st = {0};
+	struct stat st = {};
 	if ( !stat(fname, &st) )
 	{
 		tm = st.st_mtime;
@@ -462,7 +479,7 @@ BOOL GetFileSizeAndMTimeOS(const char *fname, unsigned __int64 &sz, time_t &tm)
 	}
 	return FALSE;
 #else
-	struct stat st = {0};
+	struct stat st = {};
 	if ( !stat(fname, &st) )
 	{
 		sz = st.st_size;
@@ -495,7 +512,7 @@ BOOL CloneFileMTimeOS(const char *srcfile, const char *dstfile)
 	}
 	return FALSE;
 #else
-	struct stat st = {0};
+	struct stat st = {};
 	if ( !stat(srcfile, &st) )
 	{
 		struct _utimbuf ut;

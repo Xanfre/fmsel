@@ -208,7 +208,7 @@ int Fl_Table_Row::handle(int event) {
 				select_row(R, 2);		// toggle
 				break;
 			}
-
+			// fall through
 	    case FL_SHIFT:
 			if (_selectmode != SELECT_SINGLE_PERSIST)
 			{
@@ -225,7 +225,7 @@ int Fl_Table_Row::handle(int event) {
 				}
 				break;
 			}
-
+			// fall through
 	   default:
 	     if (_selectmode == SELECT_MULTI) select_all_rows(0);	// clear all previous selections
 	     select_row(R, 1);
