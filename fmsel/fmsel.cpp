@@ -5882,107 +5882,25 @@ static BOOL GetLanguagePacks(const char *archivepath, std::list<string> &langpac
 
 static void CheckMissionFlags(const char *installdir)
 {
-#ifdef _WIN32
-	const char *strdirname = "strings";
-#else
-	char strdirname[8] = "STRINGS";
-#endif
-	const char *missflagfile = "missflag.str";
-
+	BOOL bStrDirExists = FALSE;
 	char fpath[MAX_PATH_BUF];
-	if (_snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s" DIRSEP "%s", installdir, strdirname) == -1)
-		return;
+	vector<int> misnums;
 
-	if ( !fl_filename_isdir_ex(fpath, TRUE) )
-	{
-#ifndef _WIN32
-		for (char *c = strdirname; *c != '\0'; c++)
-			*c = tolower(*c);
-		if (snprintf(fpath, sizeof(fpath), "%s" DIRSEP "%s", installdir, strdirname) == -1)
-			return;
-		if ( !fl_filename_isdir_ex(fpath, TRUE) )
-		{
-#endif
-			if ( _mkdir(fpath) )
-				return;
-#ifndef _WIN32
-		}
-#endif
-	}
-
-	BOOL bMissFlagsExist = FALSE;
 	dirent **files;
-	int nFiles = fl_filename_list(fpath, &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(installdir, &files, NO_COMP_UTFCONV);
 	for (int i=0; i<nFiles; i++)
 	{
 		dirent *f = files[i];
 
-		int len = strlen(f->d_name);
-		if (f->d_name[0] != '.' && isdirsep(f->d_name[len-1]))
+		if (!bStrDirExists && !_strnicmp(f->d_name, "strings", 7) && isdirsep(f->d_name[7])
+			&& _snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s" DIRSEP "%.7s", installdir, f->d_name) != -1)
+			bStrDirExists = TRUE;
+		else if (!_strnicmp(f->d_name, "miss", 4) && isdigit(f->d_name[4])
+			&& ((isdigit(f->d_name[5]) && !_stricmp(f->d_name+6, ".mis")) || !_stricmp(f->d_name+5, ".mis")))
 		{
-			if (strlen(fpath)+strlen(f->d_name)+1 >= MAX_PATH)
-				break;
-
-			strcat(fpath, DIRSEP);
-			strcat(fpath, f->d_name);
-
-			dirent **sfiles;
-			int nSfiles = fl_filename_list(fpath, &sfiles, NO_COMP_UTFCONV);
-			for (int j=0; j<nSfiles; j++)
-			{
-				f = sfiles[j];
-
-				if ( stristr(f->d_name, missflagfile) )
-				{
-					bMissFlagsExist = TRUE;
-					break;
-				}
-			}
-
-			fl_filename_free_list(&sfiles, nSfiles);
-		}
-		else
-		{
-			if ( stristr(f->d_name, missflagfile) )
-			{
-				bMissFlagsExist = TRUE;
-				break;
-			}
-		}
-
-		if (bMissFlagsExist)
-			break;
-	}
-
-	fl_filename_free_list(&files, nFiles);
-
-	if (bMissFlagsExist)
-		return;
-
-	if (_snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "%s", installdir, strdirname, missflagfile) == -1)
-		return;
-
-	vector<unsigned char> misnums;
-
-	nFiles = fl_filename_list(installdir, &files, NO_COMP_UTFCONV);
-	if (nFiles <= 0)
-		return;
-
-	for (int i=0; i<nFiles; i++)
-	{
-		dirent *f = files[i];
-		string fname = f->d_name;
-
-		size_t pre = fname.find("miss");
-		size_t ext = fname.find(".mis", 4);
-		if (pre != string::npos && ext != string::npos && pre == 0 && fname.size() == ext + 4)
-		{
-			if (isdigit(fname[4]) && ((isdigit(fname[5]) && ext == 6) || ext == 5))
-			{
-				int misnum = atoi(fname.substr(4, ext - 4).c_str());
-				if (misnum > 0 && misnum <= 99)
-					misnums.push_back((unsigned char)misnum);
-			}
+			int misnum = atoi(f->d_name+4);
+			if (misnum > 0 && misnum < 100)
+				misnums.push_back(misnum);
 		}
 	}
 
@@ -5991,26 +5909,88 @@ static void CheckMissionFlags(const char *installdir)
 	if (misnums.size() == 0)
 		return;
 
+	if (bStrDirExists)
+	{
+		BOOL bMissFlagsExist = FALSE;
+
+		nFiles = fl_filename_list(fpath, &files, NO_COMP_UTFCONV);
+		for (int i=0; i<nFiles; i++)
+		{
+			dirent *f = files[i];
+
+			int len = strlen(f->d_name);
+			if (f->d_name[0] != '.' && isdirsep(f->d_name[len-1]))
+			{
+				if (strlen(fpath)+len+1 > MAX_PATH_BUF)
+					break;
+
+				char sfpath[MAX_PATH_BUF];
+				if (_snprintf_s(sfpath, sizeof(sfpath), _TRUNCATE, "%s" DIRSEP "%.*s", fpath, len-1, f->d_name) == -1)
+					break;
+
+				dirent **sfiles;
+				int nSfiles = fl_filename_list(sfpath, &sfiles, NO_COMP_UTFCONV);
+				for (int j=0; j<nSfiles; j++)
+				{
+					f = sfiles[j];
+
+					if ( !_stricmp(f->d_name, "missflag.str") )
+					{
+						bMissFlagsExist = TRUE;
+						break;
+					}
+				}
+
+				fl_filename_free_list(&sfiles, nSfiles);
+			}
+			else if ( !_stricmp(f->d_name, "missflag.str") )
+				bMissFlagsExist = TRUE;
+
+			if (bMissFlagsExist)
+				break;
+		}
+
+		fl_filename_free_list(&files, nFiles);
+
+		if (bMissFlagsExist)
+			return;
+	}
+	else if (_snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s" DIRSEP "strings", installdir) == -1 || _mkdir(fpath))
+	{
+		fl_alert($("Failed to create \"strings\" directory for mission flags."));
+		return;
+	}
+
+	if (strlen(fpath)+14 > MAX_PATH_BUF)
+	{
+		fl_alert($("Failed to generate mission flags, path too long."));
+		return;
+	}
+	strcat(fpath, DIRSEP "missflag.str");
+
 	sort(misnums.begin(), misnums.end());
 
 	string str = "";
-	for (unsigned char i = 1; i <= misnums.back(); i++)
+	for (int i = 1; i <= misnums.back(); i++)
 	{
 		str.append("miss_");
-		char misnum[4];
-		_snprintf_s(misnum, sizeof(misnum), _TRUNCATE, "%u", i);
-		str.append(misnum);
+#if __cplusplus >= 201103L
+		str.append(std::to_string(i));
+#else
+		{
+			char misnum[12];
+			str.append(_itoa(i, misnum, 10));
+		}
+#endif
 		str.append(": ");
-		if ( count(misnums.begin(), misnums.end(), i) )
+		if (count(misnums.begin(), misnums.end(), i) > 0)
 		{
 			str.append("\"no_briefing, no_loadout");
 			if (i == misnums.back())
 				str.append(", end");
 		}
 		else
-		{
 			str.append("\"skip");
-		}
 		str.append("\"\r\n");
 	}
 

@@ -151,7 +151,7 @@ int StartFMSel(const char *game, const char *rootPath, const char *lang,
 	if (0 != pipeFD)
 		WriteDataToPipe(&data, (HANDLE) pipeFD);
 #else
-	if (pipePID >= 0)
+	if (pipeFD >= 0)
 		WriteDataToPipe(&data, pipeFD);
 #endif
 	// Free buffers.
