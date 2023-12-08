@@ -592,6 +592,13 @@ BOOL GetFmselModulePath(char *buf, int len)
 		ASSERT(FALSE);
 		return FALSE;
 	}
+
+	char *sep = strrchr(buf, '/');
+	if (!sep)
+		sep = buf;
+	char *ext = strstr(sep, ".so.");
+	if (ext)
+		ext[3] = '\0';
 #endif
 
 	return TRUE;

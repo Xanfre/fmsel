@@ -17,6 +17,9 @@
 #ifdef _WIN32
 #include <io.h>
 #else
+#ifdef USE_XDG
+#include <limits.h>
+#endif
 #define _strnicmp strncasecmp
 #define strnicmp strncasecmp
 #endif
@@ -227,6 +230,7 @@ void InitLocalization()
 
 	localization_initialized = 1;
 
+#if defined(_WIN32) || !defined(USE_XDG)
 	// generate filename with path and file title same as dll file
 
 	char fname[2048] = { 0, };
@@ -237,6 +241,15 @@ void InitLocalization()
 	if (!ext)
 		return;
 	strcpy(ext+1, "po");
+#else
+	// get file from the XDG data directory
+
+	char fname[PATH_MAX];
+	const char *xdg = getenv("XDG_DATA_HOME");
+	int result = snprintf(fname, sizeof(fname), "%s%s/fmsel/fmsel.po", xdg ? xdg : getenv("HOME"), xdg ? "" : "/.local/share");
+	if (result < 0 || result >= PATH_MAX)
+		return;
+#endif
 
 	// read file into buffer
 

@@ -39,6 +39,9 @@ endif
 ifneq ($(USE_PATH_MAX),)
 	CPPFLAGS_CXX_ALL += -DUSE_PATH_MAX
 endif
+ifneq ($(USE_XDG),)
+	CPPFLAGS_CXX_ALL += -DUSE_XDG
+endif
 endif
 ifneq ($(SUPPORT_T3),)
 	CPPFLAGS_CXX_ALL += -DSUPPORT_T3
