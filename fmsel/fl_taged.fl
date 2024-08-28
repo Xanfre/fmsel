@@ -1,15 +1,15 @@
 # data file for the Fltk User Interface Designer (fluid)
-version 1.0110 
-i18n_type 1 
-i18n_include  
-i18n_function $ 
-header_name {.h} 
+version 1.0309
+i18n_type 1
+i18n_include 
+i18n_function $
+header_name {.h}
 code_name {.cpp.h}
-Function {MakeTagEditor()} {open private
+Function {MakeTagEditor(int scale)} {open selected private
 } {
   Fl_Window pTagEdWnd {
     label FMSel open
-    xywh {348 288 540 260} type Double resizable
+    xywh {353 293 540 260} type Double resizable
     class Fl_FM_TagEd_Window modal size_range {540 260 0 0} visible
   } {
     Fl_Tabs pTagEdTabs {open
@@ -17,7 +17,7 @@ Function {MakeTagEditor()} {open private
     } {
       Fl_Group {} {
         label Misc open
-        xywh {0 22 540 197} labelfont 1 labelsize 11 labelcolor 8 resizable
+        xywh {0 22 540 197} labelfont 1 labelsize 11 labelcolor 8 hide resizable
         code0 {o->labelsize(FL_NORMAL_SIZE-1);}
       } {
         Fl_Group {} {open
@@ -130,8 +130,8 @@ Function {MakeTagEditor()} {open private
         }
       }
       Fl_Group {} {
-        label Notes open selected
-        xywh {0 22 540 197} labelfont 1 labelsize 11 labelcolor 8 hide
+        label Notes open
+        xywh {0 22 540 197} labelfont 1 labelsize 11 labelcolor 8
         code0 {o->labelsize(FL_NORMAL_SIZE-1);}
       } {
         Fl_Text_Editor pTagEdNotes {
@@ -157,4 +157,4 @@ Function {MakeTagEditor()} {open private
       } {}
     }
   }
-} 
+}

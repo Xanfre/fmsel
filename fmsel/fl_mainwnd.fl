@@ -1,17 +1,18 @@
 # data file for the Fltk User Interface Designer (fluid)
-version 1.0110 
-i18n_type 1 
-i18n_include  
-i18n_function $ 
-header_name {.h} 
+version 1.0309
+i18n_type 1
+i18n_include 
+i18n_function $
+header_name {.h}
 code_name {.cpp.h}
-Function {MakeWindow()} {open private
+Function {MakeWindow(int scale)} {open selected private
 } {
   Fl_Window pMainWnd {
-    label {Dark FM Selector} open
-    xywh {348 287 630 380} type Double resizable size_range {630 380 0 0} visible
+    label {Dark FM Selector}
+    callback OnClose open
+    xywh {353 292 630 380} type Double resizable size_range {630 380 0 0} visible
   } {
-    Fl_File_Browser pFMList {selected
+    Fl_File_Browser pFMList {
       xywh {5 80 620 255} selection_color 230 labelsize 10 when 4 textfont 1 resizable
       code0 {pFMList->selection_color( fl_rgb_color(170,238,255) );}
       code1 {o->labelsize(FL_NORMAL_SIZE-2);}
@@ -174,4 +175,4 @@ Function {MakeWindow()} {open private
       class Fl_FM_TagFilter_Group
     } {}
   }
-} 
+}

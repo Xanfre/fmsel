@@ -1,12 +1,15 @@
 # data file for the Fltk User Interface Designer (fluid)
-version 1.0110 
-header_name {.h} 
+version 1.0309
+i18n_type 1
+i18n_include 
+i18n_function $
+header_name {.h}
 code_name {.cpp.h}
-Function {MakeDarkConfigWidnow()} {open private
+Function {MakeDarkConfigWindow(int scale)} {open private
 } {
   Fl_Window pDarkCfgWnd {
-    label {Game Options} open selected
-    private xywh {354 289 618 408} type Double modal visible
+    label {Game Options} open
+    private xywh {355 290 615 405} type Double modal visible
   } {
     Fl_Browser pCategoryList {
       private xywh {2 5 128 367} type Select textfont 1
@@ -26,4 +29,4 @@ Function {MakeDarkConfigWidnow()} {open private
       xywh {405 380 95 25}
     }
   }
-} 
+}

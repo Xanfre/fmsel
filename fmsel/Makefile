@@ -19,13 +19,13 @@ TARGET_OS ?= $(OS)
 
 CFLAGS_ALL = -O2 $(CFLAGS)
 CXXFLAGS_ALL = -O2 $(CXXFLAGS)
-CPPFLAGS_C_ALL = -std=c99 -Wall -Wextra $(CPPFLAGS)
-CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wextra -Wno-cast-function-type -Wno-format-security $(CPPFLAGS)
+CPPFLAGS_C_ALL = -std=c99 -Wall -Wextra -Wno-unused $(CPPFLAGS)
+CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wextra -Wno-cast-function-type -Wno-format-security -Wno-unused $(CPPFLAGS)
 LDFLAGS_ALL = $(L7ZIP_LIB) $(LDFLAGS)
 
 ifeq ($(TARGET_OS),Windows_NT)
-	CPPFLAGS_C_ALL += -Wno-unused -DNO_VIZ
-	CPPFLAGS_CXX_ALL += -Wno-unused -I../zlibcomp
+	CPPFLAGS_C_ALL += -DNO_VIZ
+	CPPFLAGS_CXX_ALL += -I../zlibcomp
 ifneq ($(STATIC),)
 	CPPFLAGS_CXX_ALL += -DSTATIC
 endif
