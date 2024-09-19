@@ -5970,30 +5970,6 @@ static void CheckMissionFlags(const char *installdir)
 
 	sort(misnums.begin(), misnums.end());
 
-	string str = "";
-	for (int i = 1; i <= misnums.back(); i++)
-	{
-		str.append("miss_");
-#if __cplusplus >= 201103L
-		str.append(std::to_string(i));
-#else
-		{
-			char misnum[12];
-			str.append(_itoa(i, misnum, 10));
-		}
-#endif
-		str.append(": ");
-		if (count(misnums.begin(), misnums.end(), i) > 0)
-		{
-			str.append("\"no_briefing, no_loadout");
-			if (i == misnums.back())
-				str.append(", end");
-		}
-		else
-			str.append("\"skip");
-		str.append("\"\r\n");
-	}
-
 	FILE *f = fopen(fpath, "wb");
 	if (!f)
 	{
@@ -6001,7 +5977,19 @@ static void CheckMissionFlags(const char *installdir)
 		return;
 	}
 
-	fprintf(f, str.c_str());
+	for (int i = 1; i <= misnums.back(); i++)
+	{
+		fprintf(f, "miss_%d: ", i);
+		if (count(misnums.begin(), misnums.end(), i) > 0)
+		{
+			fprintf(f, "\"no_briefing, no_loadout");
+			if (i == misnums.back())
+				fprintf(f, ", end");
+		}
+		else
+			fprintf(f, "\"skip");
+		fprintf(f, "\"\r\n");
+	}
 
 	fclose(f);
 }
