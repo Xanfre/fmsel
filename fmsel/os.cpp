@@ -13,9 +13,9 @@
 #ifdef _WIN32
 #include <direct.h>
 #else
+#include <spawn.h>
 #include <unistd.h>
 #include <sys/statvfs.h>
-#include <sys/wait.h>
 #define TRUE 1
 #define FALSE 0
 #define _utime utime
@@ -185,28 +185,37 @@ void WaitForProcessExitOS(unsigned int, int waitms)
 }
 #endif
 
+#ifndef _WIN32
+extern char **environ;
+#endif
+
 BOOL OpenFileWithAssociatedApp(const char *filename, const char *dirname)
 {
 #ifdef _WIN32
 	int res = (int) ShellExecuteA(NULL, "open", filename, NULL, dirname, SW_SHOWNORMAL);
 	return res > 32;
 #else
-	pid_t pid = fork();
-	if (pid < 0)
-		return FALSE;
-	else if (0 == pid)
+	posix_spawn_file_actions_t fileactions;
+	posix_spawnattr_t attr;
+	BOOL ret = FALSE;
+
+	if (dirname && 0 != posix_spawn_file_actions_init(&fileactions))
+		return ret;
+
+	if ((!dirname || 0 == posix_spawn_file_actions_addchdir_np(&fileactions, dirname))
+		&& 0 == posix_spawnattr_init(&attr))
 	{
-		setsid();
-		pid = fork();
-		// exit unless this is the child
-		if (0 != pid)
-			exit(pid > 0 ? 0 : 1);
-		if ((NULL != dirname && -1 == chdir(dirname))
-			|| -1 == execlp(PREF_PROG, PREF_PROG, filename, NULL))
-			exit(1);
+		pid_t pid;
+		char *argv[3] = { (char *) PREF_PROG, (char *) filename, NULL };
+		posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID);
+		ret = (0 == posix_spawnp(&pid, PREF_PROG, dirname ? &fileactions : NULL, &attr, argv, environ));
+		posix_spawnattr_destroy(&attr);
 	}
-	int status;
-	return -1 != waitpid(pid, &status, 0) && WIFEXITED(status) && 0 == WEXITSTATUS(status);
+
+	if (dirname)
+		posix_spawn_file_actions_destroy(&fileactions);
+
+	return ret;
 #endif
 }
 
@@ -219,21 +228,19 @@ BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser)
 	int res = (int) ShellExecuteA(NULL, "open", custombrowser, url, NULL, SW_SHOWNORMAL);
 	return res > 32;
 #else
-	pid_t pid = fork();
-	if (pid < 0)
-		return FALSE;
-	else if (0 == pid)
+	posix_spawnattr_t attr;
+	BOOL ret = FALSE;
+
+	if (0 == posix_spawnattr_init(&attr))
 	{
-		setsid();
-		pid = fork();
-		// exit unless this is the child
-		if (0 != pid)
-			exit(pid > 0 ? 0 : 1);
-		if (-1 == execlp(custombrowser, custombrowser, url, NULL))
-			exit(1);
+		pid_t pid;
+		char *argv[3] = { (char *) custombrowser, (char *) url, NULL };
+		posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID);
+		ret = (0 == posix_spawnp(&pid, custombrowser, NULL, &attr, argv, environ));
+		posix_spawnattr_destroy(&attr);
 	}
-	int status;
-	return -1 != waitpid(pid, &status, 0) && WIFEXITED(status) && 0 == WEXITSTATUS(status);
+
+	return ret;
 #endif
 }
 

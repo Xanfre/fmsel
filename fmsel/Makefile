@@ -20,7 +20,7 @@ TARGET_OS ?= $(OS)
 CFLAGS_ALL = -O2 $(CFLAGS)
 CXXFLAGS_ALL = -O2 $(CXXFLAGS)
 CPPFLAGS_C_ALL = -std=c99 -Wall -Wextra -Wno-unused $(CPPFLAGS)
-CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wextra -Wno-cast-function-type -Wno-format-security -Wno-unused $(CPPFLAGS)
+CPPFLAGS_CXX_ALL = -std=c++11 $(L7ZIP_INC) -Wall -Wextra -Wno-cast-function-type -Wno-format-security -Wno-unused $(CPPFLAGS)
 LDFLAGS_ALL = $(L7ZIP_LIB) $(LDFLAGS)
 
 ifeq ($(TARGET_OS),Windows_NT)
@@ -32,7 +32,7 @@ endif
 else
 	CFLAGS_ALL += -fPIC
 	CXXFLAGS_ALL += -fPIC
-	CPPFLAGS_CXX_ALL += -D_LARGEFILE_SOURCE -DLARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D__int64="long long int"
+	CPPFLAGS_CXX_ALL += -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_LARGEFILE_SOURCE -DLARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D__int64="long long int"
 ifneq ($(SYSTEM_UTF8),)
 	CPPFLAGS_CXX_ALL += -DSYSTEM_UTF8
 endif
