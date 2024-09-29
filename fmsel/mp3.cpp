@@ -335,12 +335,8 @@ static unsigned int DecompressOgg(OggVorbis_File &vf, FILE *fwav)
 	return decompressed_bytes;
 }
 
-#endif
-
-
 bool ConvertOggFile(FILE *f, FILE *fwav)
 {
-#ifdef OGG_SUPPORT
 	if (!f)
 		return false;
 
@@ -368,20 +364,15 @@ bool ConvertOggFile(FILE *f, FILE *fwav)
 	ov_clear(&vf);
 
 	return true;
-#else
-	return false;
-#endif
 }
 
 const char* GetOggVersion()
 {
-#ifdef OGG_SUPPORT
 	const char *s = vorbis_version_string();
 	// skip to "libVorbis" part of the version string
 	if (s && !_strnicmp(s, "Xiph.Org ", 9))
 		s += 9;
 	return s;
-#else
-	return "libVorbis";
-#endif
 }
+
+#endif

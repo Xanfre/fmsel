@@ -612,7 +612,9 @@ struct FMSelConfig
 	// review diffs before doing a differential backup
 	BOOL bReviewDiffBackup;
 
+#ifdef OGG_SUPPORT
 	BOOL bDecompressOGG;
+#endif
 	BOOL bGenerateMissFlags;
 
 	unsigned int dwLastProcessID;
@@ -687,7 +689,9 @@ public:
 		uiscale = 4;
 		bDiffBackups = FALSE;
 		bReviewDiffBackup = FALSE;
+#ifdef OGG_SUPPORT
 		bDecompressOGG = FALSE;
+#endif
 		bGenerateMissFlags = TRUE;
 		dwLastProcessID = 0;
 		bAutoRefreshFilteredDb = TRUE;
@@ -973,7 +977,9 @@ public:
 		if (uiscale > 4) fprintf(f, "Scale=%d\n", uiscale-4);
 		if (bDiffBackups) fprintf(f, "BackupType=%d\n", !!bDiffBackups);
 		if (bReviewDiffBackup) fprintf(f, "ReviewDiffBackup=%d\n", bReviewDiffBackup);
+#ifdef OGG_SUPPORT
 		if (bDecompressOGG) fprintf(f, "ConvertOGG=%d\n", bDecompressOGG);
+#endif
 		if (!bGenerateMissFlags) fprintf(f, "GenerateMissFlags=%d\n", bGenerateMissFlags);
 		if ( !archiveRepo.empty() ) fprintf(f, "ArchiveRoot=%s\n", archiveRepo.c_str());
 		if ( !browserApp.empty() ) fprintf(f, "Browser=%s\n", browserApp.c_str());
@@ -1125,8 +1131,10 @@ public:
 			bDiffBackups = !!atoi(val);
 		else if ( !_stricmp(valname, "ReviewDiffBackup") )
 			bReviewDiffBackup = !!atoi(val);
+#ifdef OGG_SUPPORT
 		else if ( !_stricmp(valname, "ConvertOGG") )
 			bDecompressOGG = !!atoi(val);
+#endif
 		else if ( !_stricmp(valname, "GenerateMissFlags") )
 			bGenerateMissFlags = !!atoi(val);
 		else if ( !_stricmp(valname, "ArchiveRoot") )
@@ -5452,6 +5460,7 @@ static bool EnumMP3Files(const char *fname, void *p)
 	return true;
 }
 
+#ifdef OGG_SUPPORT
 static bool EnumMP3OGGFiles(const char *fname, void *p)
 {
 	ASSERT(p != NULL);
@@ -5469,6 +5478,7 @@ static bool EnumMP3OGGFiles(const char *fname, void *p)
 
 	return true;
 }
+#endif
 
 struct MP3Context
 {
@@ -5672,6 +5682,7 @@ output_data:
 	return (void*)1;
 }
 
+#ifdef OGG_SUPPORT
 struct OGGContext
 {
 	std::list<string> *oggfiles;
@@ -5745,6 +5756,7 @@ static void* OGGThread(void *p)
 
 	return (void*)1;
 }
+#endif
 
 static BOOL ConvertMP3Files(std::list<string> &mp3files, const char *installdir)
 {
@@ -5773,6 +5785,7 @@ static BOOL ConvertMP3Files(std::list<string> &mp3files, const char *installdir)
 	return TRUE;
 }
 
+#ifdef OGG_SUPPORT
 static BOOL ConvertOGGFiles(std::list<string> &oggfiles, const char *installdir)
 {
 	if ( oggfiles.empty() )
@@ -5799,6 +5812,7 @@ static BOOL ConvertOGGFiles(std::list<string> &oggfiles, const char *installdir)
 
 	return TRUE;
 }
+#endif
 
 
 static BOOL rename_instdir_safe(const char *src, const char *dst)
@@ -6048,9 +6062,14 @@ static BOOL InstallFM(FMEntry *fm)
 	}
 
 	// get list of MP3s and if needed OGGs
+#ifdef OGG_SUPPORT
 	std::list<string> compressedSndFiles[2];
 	std::list<string> &mp3files = compressedSndFiles[0];
 	std::list<string> &oggfiles = compressedSndFiles[1];
+#else
+	std::list<string> compressedSndFiles;
+	std::list<string> &mp3files = compressedSndFiles;
+#endif
 #ifdef SUPPORT_T3
 	if (!g_bRunningThief3)
 	{
@@ -6058,7 +6077,7 @@ static BOOL InstallFM(FMEntry *fm)
 #ifdef OGG_SUPPORT
 	EnumFullArchive(archivepath.c_str(), g_cfg.bDecompressOGG ? EnumMP3OGGFiles : EnumMP3Files, &compressedSndFiles[0]);
 #else
-	EnumFullArchive(archivepath.c_str(), EnumMP3Files, &compressedSndFiles[0]);
+	EnumFullArchive(archivepath.c_str(), EnumMP3Files, &compressedSndFiles);
 #endif
 #ifdef SUPPORT_T3
 	}
@@ -6105,8 +6124,10 @@ static BOOL InstallFM(FMEntry *fm)
 
 	if (!mp3files.empty() && bSupportsMP3)
 		sprintf(s1+strlen(s1), $(" + %d MP3 file(s), size unknown"), mp3files.size());
+#ifdef OGG_SUPPORT
 	if ( !oggfiles.empty() )
 		sprintf(s1+strlen(s1), $(" + %d OGG file(s), size unknown"), oggfiles.size());
+#endif
 
 	// TODO: if bHasLangPacks then display a fancier install dialog with a droplist of available lang packs (and "None"),
 	//       defaulting to the language last installed if possible (when the lang pack gets extracted after install it
@@ -6169,6 +6190,7 @@ static BOOL InstallFM(FMEntry *fm)
 
 		return FALSE;
 	}
+#ifdef OGG_SUPPORT
 	// convert OGGs to WAVs
 	if ( !ConvertOGGFiles(oggfiles, tmpdir.c_str()) )
 	{
@@ -6176,6 +6198,7 @@ static BOOL InstallFM(FMEntry *fm)
 
 		return FALSE;
 	}
+#endif
 
 	// generate Thief mission flags
 #ifdef SUPPORT_T3
@@ -7223,10 +7246,12 @@ public:
 			g_cfg.OnModified();
 			break;
 
+#ifdef OGG_SUPPORT
 		case CMD_ConvertOgg:
 			g_cfg.bDecompressOGG = !g_cfg.bDecompressOGG;
 			g_cfg.OnModified();
 			break;
+#endif
 		case CMD_GenerateMissFlags:
 			g_cfg.bGenerateMissFlags = !g_cfg.bGenerateMissFlags;
 			g_cfg.OnModified();

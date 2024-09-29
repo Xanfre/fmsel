@@ -17,9 +17,6 @@
 
 #include <stdio.h>
 
-// enable OGG conversion support
-#define OGG_SUPPORT
-
 #ifdef _WIN32
 #define MP3LIB "libmp3lame.dll"
 #else
@@ -73,7 +70,9 @@ bool InitMp3File(FILE *f);
 bool InitWavFile(FILE *f);
 bool FinalizeWavFile(FILE *f, int nSampleRate, int nChannels);
 
+#ifdef OGG_SUPPORT
 bool ConvertOggFile(FILE *f, FILE *fwav);
 const char* GetOggVersion();
+#endif
 
 #endif // _MP3_H_
