@@ -4238,7 +4238,7 @@ static int ListFilesInDirPruned(const char *path, unsigned int maxdepth, std::ve
 		int len = strlen(f->d_name);
 		if ( !isdirsep(f->d_name[len-1]) )
 			list.push_back(f->d_name);
-		else if ( !strcmp(f->d_name, "./") || !strcmp(f->d_name, "../") )
+		else if (f->d_name[0] == '.')
 			continue;
 		else if (maxdepth > 0)
 		{
