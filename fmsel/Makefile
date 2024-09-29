@@ -43,7 +43,7 @@ ifneq ($(USE_XDG),)
 	CPPFLAGS_CXX_ALL += -DUSE_XDG
 endif
 endif
-ifneq($(OGG_SUPPORT),)
+ifneq ($(OGG_SUPPORT),)
 	CPPFLAGS_CXX_ALL += -DOGG_SUPPORT
 endif
 ifneq ($(SUPPORT_T3),)
@@ -55,7 +55,7 @@ endif
 
 LIBS = -lfltk -lfltk_images -l7zip
 
-ifneq($(OGG_SUPPORT),)
+ifneq ($(OGG_SUPPORT),)
 	LIBS += -lvorbisfile -lvorbis -logg
 endif
 ifeq ($(TARGET_OS),Windows_NT)
