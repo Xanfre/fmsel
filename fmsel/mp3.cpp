@@ -20,11 +20,25 @@
 #include "os.h"
 #include "lang.h"
 
-#ifdef OGG_SUPPORT
 #pragma pack(8)
-#include <vorbis/vorbisfile.h>
-#pragma pack()
+#define DR_WAV_IMPLEMENTATION
+#define DR_WAV_NO_CONVERSION_API
+#include <dr_wav.h>
+#ifdef MP3_SUPPORT
+#define DR_MP3_IMPLEMENTATION
+#include <dr_mp3.h>
 #endif
+#ifdef OGG_SUPPORT
+#include <vorbis/vorbisfile.h>
+#endif
+#ifdef OPUS_SUPPORT
+#include <opus/opusfile.h>
+#endif
+#ifdef FLAC_SUPPORT
+#include <FLAC/metadata.h>
+#include <FLAC/stream_decoder.h>
+#endif
+#pragma pack()
 
 #include <FL/fl_ask.H>
 
@@ -36,334 +50,148 @@
 #endif
 
 
-// links to lame binaries can be found on http://lame.sourceforge.net/links.php#Binaries
-// for Windows the recommended download is libmp3lame from http://www.rarewares.org/mp3-lame-libraries.php
+#define BUF_SIZE 128*1024
 
-// allthough lame is primary an encoder and the decoding functions use the mpg123 lib, I chose lame over
-// mpg123 because of the more user friendly availability of cross platform binaries, and also lame wraps
-// some functionality like dealing with VBR that we don't have to mess with
+/////////////////////////////////////////////////////////////////////
+// WAV SUPPORT
 
-
-typedef unsigned int DWORD;
-typedef unsigned short WORD;
-typedef unsigned char BYTE;
-typedef unsigned int FOURCC;
-#define WAVFMT_PCM 1
-#define WAVFMT_MP3 0x55
-#define MAKEFOURCC(ch0, ch1, ch2, ch3) \
-	((DWORD)(BYTE)(ch0) | ((DWORD)(BYTE)(ch1) << 8) | \
-	((DWORD)(BYTE)(ch2) << 16) | ((DWORD)(BYTE)(ch3) << 24 ))
-
-#pragma pack(1)
-
-struct WAVHEADER
+const char* GetWavVersion()
 {
-	FOURCC fcRIFF;
-	DWORD dwFileSize;
-	FOURCC fcWAVE;
-	FOURCC fcFMT;
-	DWORD dwWaveSize;
-
-	// WAVEFORMAT
-	WORD wFormatTag;
-	WORD nChannels;
-	DWORD nSamplesPerSec;
-	DWORD nAvgBytesPerSec;
-	WORD nBlockAlign;
-	WORD wBitsPerSample;
-
-	FOURCC fcDATA;
-	DWORD dwDataSize;
-};
-
-struct WAVEFORMATEX
-{
-	WORD wFormatTag;
-	WORD nChannels;
-	DWORD nSamplesPerSec;
-	DWORD nAvgBytesPerSec;
-	WORD nBlockAlign;
-	WORD wBitsPerSample;
-	WORD cbSize;
-};
-
-#pragma pack()
-
-
-static void *g_hDll = NULL;
-
-hip_t (CDECL *lame_decode_init)(void) = NULL;
-int (CDECL *lame_decode_exit)(hip_t gfp) = NULL;
-int (CDECL *lame_decode1_headersB)(hip_t gfp, unsigned char *mp3buf, int len, short pcm_l[], short pcm_r[], sMp3data *mp3data, int *enc_delay, int *enc_padding) = NULL;
-
-
-bool InitMP3()
-{
-	if (g_hDll)
-		return true;
-
-#ifdef _WIN32
-	// strip extension
-	char dllname[256];
-	strcpy(dllname, MP3LIB);
-	char *ext = strrchr(dllname, '.');
-	if (ext)
-		*ext = 0;
-
-	g_hDll = LoadDynamicLibOS(dllname);
-#else
-	g_hDll = LoadDynamicLibOS(MP3LIB);
-#endif
-	if (!g_hDll)
-		return false;
-
-	lame_decode_init = (hip_t (CDECL*)(void)) GetDynamicLibProcOS(g_hDll, "hip_decode_init");
-	lame_decode_exit = (int (CDECL*)(hip_t)) GetDynamicLibProcOS(g_hDll, "hip_decode_exit");
-	lame_decode1_headersB = (int (CDECL*)(hip_t,unsigned char*,int,short[],short[],sMp3data*,int*,int*)) GetDynamicLibProcOS(g_hDll, "hip_decode1_headersB");
-
-	if (!lame_decode_init || !lame_decode_exit || !lame_decode1_headersB)
+	static char drwavver[24] = { 0 };
+	if (!*drwavver)
 	{
-		CloseDynamicLibOS(g_hDll);
-		g_hDll = NULL;
-		fl_alert($("Wrong %s version found."), MP3LIB);
-		return false;
+		strcpy(drwavver, "dr_wav ");
+		strcat(drwavver, drwav_version_string());
 	}
-
-	return true;
+	return drwavver;
 }
 
-void TermMP3()
+/////////////////////////////////////////////////////////////////////
+// MP3 SUPPORT
+
+#ifdef MP3_SUPPORT
+static bool DecompressMp3(drmp3 *dec, drwav *wav)
 {
-	if (!g_hDll)
-		return;
+	drmp3_int16 buf[BUF_SIZE / sizeof(drmp3_int16)];
 
-	CloseDynamicLibOS(g_hDll);
-
-	g_hDll = NULL;
-}
-
-static bool IsMpFrame(const unsigned char *p)
-{
-	if (p[0] != 0xff || (p[1] & 0xe0) != 0xe0 || (p[1] & 0x18) == 8)
-		return false;
-
-	if (!(p[1] & 6) || (p[2] & 0xf0) == 0xf0 || (p[2] & 0x0c) == 0x0c || (p[3] & 3) == 2)
-		return false;
-
-	const char abl2[16] = {0,7,7,7,0,7,0,0,0,0,0,8,8,8,8,8};
-
-	if ((p[1] & 0x18) == 0x18 && (p[1] & 6) == 4 && (abl2[p[2]>>4] & (1 << (p[3] >> 6))))
-		return false;
-
-	return true;
-}
-
-bool InitMp3File(FILE *f)
-{
-	if (!f)
-		return false;
-
-	// check if file is actually a WAV file with mp3 data
-	WAVHEADER hdr = {};
-	fread(&hdr, 1, sizeof(DWORD)*5, f);
-
-	if (hdr.fcRIFF != MAKEFOURCC('R','I','F','F'))
+	// read until EOF
+	for (;;)
 	{
-		// not WAV
+		drmp3_uint64 frames = drmp3_read_pcm_frames_s16(dec, BUF_SIZE / dec->channels / sizeof(drmp3_int16), buf);
 
-		char *hdata = (char*)&hdr;
+		if (frames <= 0)
+			break;
 
-		fseek(f, 4, SEEK_SET);
-
-		// skip past (optional) ID3 headers
-		if ( !strncmp(hdata, "ID3", 3) )
-		{
-			do
-			{
-				fread(hdata, 1, 6, f);
-				hdata[2] &= 0x7f;
-				hdata[3] &= 0x7f;
-				hdata[4] &= 0x7f;
-				hdata[5] &= 0x7f;
-				const int l = (hdata[2] << 21) | (hdata[3] << 14) | (hdata[4] << 7) | hdata[5];
-				fseek(f, l, SEEK_CUR);
-
-				if (fread(hdata, 1, 4, f) < 4)
-					break;
-			}
-			while ( !strncmp(hdata, "ID3", 3) );
-		}
-
-		// skip past (optional) AiD header
-		if ( !strncmp(hdata, "AiD\1", 4) )
-		{
-			fread(hdata, 1, 2, f);
-			const int l = ((DWORD)(BYTE)hdata[1] << 8) | (DWORD)(BYTE)hdata[0];
-			fseek(f, l - 6, SEEK_CUR);
-
-			fread(hdata, 1, 4, f);
-		}
-
-		// scan to first frame
-		while ( !IsMpFrame((unsigned char*)hdata) )
-		{
-			hdata[0] = hdata[1];
-			hdata[1] = hdata[2];
-			hdata[2] = hdata[3];
-			if (fread(hdata+3, 1, 1, f) != 1)
-				return false;
-		}
-
-		// move back file pos to start of frame
-		fseek(f, -4, SEEK_CUR);
-
-		return true;
-	}
-
-	if (hdr.fcWAVE != MAKEFOURCC('W','A','V','E') || hdr.fcFMT != MAKEFOURCC('f','m','t',' '))
-		return false;
-
-	int extra_data = 0;
-	WAVEFORMATEX wf = {};
-
-	if (hdr.dwWaveSize >= 18)
-	{
-		// WAVEFORMATEX
-
-		fread(&wf, 1, 18, f);
-
-		// make sure it's mp3 data
-		if (wf.wFormatTag != WAVFMT_MP3)
+		if (frames != (drmp3_uint64)drwav_write_pcm_frames(wav, frames, buf))
 			return false;
+	}
 
-		extra_data = wf.cbSize;
+	return true;
+}
+
+bool ConvertMp3File(const char *name, const char *wavname)
+{
+	if (!name || !wavname)
+		return false;
+
+	/*
+	// check if file is actually a WAV file with mp3 data
+	if (DRWAV_TRUE != drwav_init(&wav, Mp3ReadFile, WavSeekFile, f, NULL))
+	{
+		if (wav.container == drwav_container_riff && wav.fmt.formatTag == 0x55) // MP3
+			fseek(f, wav.dataChunkDataPos, SEEK_SET);
+		else
+			fseek(f, 0, SEEK_SET);
+		drwav_uninit(&wav);
 	}
 	else
-	{
-		fread(&hdr.wFormatTag, 1, hdr.dwWaveSize>16 ? 16 : hdr.dwWaveSize, f);
+		fseek(f, 0, SEEK_SET);
+	*/
 
-		// make sure it's mp3 data
-		if (hdr.wFormatTag != WAVFMT_MP3)
-			return false;
-	}
-
-	// move file pos to start of data chunk
-	fseek(f, 12 + 8 + hdr.dwWaveSize + extra_data, SEEK_SET);
-
-	fread(&hdr.fcDATA, 1, 8, f);
-	if (hdr.fcDATA != MAKEFOURCC('d','a','t','a'))
+	drmp3 dec;
+	if (DRMP3_TRUE != drmp3_init_file(&dec, name, NULL))
 		return false;
 
-	return true;
+	drwav wav;
+	drwav_data_format fmt = { drwav_container_riff, DR_WAVE_FORMAT_PCM, (drwav_uint32)dec.channels, (drwav_uint32)dec.sampleRate, 16 };
+	if (DRWAV_TRUE != drwav_init_file_write(&wav, wavname, &fmt, NULL))
+	{
+		drmp3_uninit(&dec);
+		return false;
+	}
+
+	bool success = DecompressMp3(&dec, &wav);
+
+	drwav_uninit(&wav);
+	drmp3_uninit(&dec);
+
+	return success;
 }
 
-bool InitWavFile(FILE *f)
+const char* GetMp3Version()
 {
-	// reserve file space for wav header
-	WAVHEADER hdr = {};
-	return fwrite(&hdr, 1, sizeof(hdr), f) == sizeof(hdr);
+	static char drmp3ver[24] = { 0 };
+	if (!*drmp3ver)
+	{
+		strcpy(drmp3ver, "dr_mp3 ");
+		strncat(drmp3ver, drmp3_version_string(), sizeof(drmp3ver) - 8);
+	}
+	return drmp3ver;
 }
-
-bool FinalizeWavFile(FILE *f, int nSampleRate, int nChannels)
-{
-	// update reserved wav header with actual data
-
-	const long fsize = ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	WAVHEADER hdr = {};
-	hdr.fcRIFF = MAKEFOURCC('R','I','F','F');
-	hdr.dwFileSize = fsize - 8;
-	hdr.fcWAVE = MAKEFOURCC('W','A','V','E');
-
-	hdr.fcFMT = MAKEFOURCC('f','m','t',' ');
-	hdr.dwWaveSize = 16;
-	hdr.wFormatTag = WAVFMT_PCM;
-	hdr.nChannels = nChannels;
-	hdr.nSamplesPerSec = nSampleRate;
-	hdr.wBitsPerSample = 16;
-	hdr.nAvgBytesPerSec = hdr.nSamplesPerSec * hdr.nChannels * (hdr.wBitsPerSample / 8);
-	hdr.nBlockAlign = nChannels * (hdr.wBitsPerSample / 8);
-
-	hdr.fcDATA = MAKEFOURCC('d','a','t','a');
-	hdr.dwDataSize = fsize - sizeof(hdr);
-
-	return fwrite(&hdr, 1, sizeof(hdr), f) == sizeof(hdr);
-}
-
+#endif
 
 /////////////////////////////////////////////////////////////////////
 // OGG SUPPORT
 
 #ifdef OGG_SUPPORT
-
-static size_t OggReadFile(void *ptr, size_t size, size_t nmemb, void *datasource)
+static bool DecompressOgg(OggVorbis_File *vf, drwav *wav)
 {
-	return fread(ptr, size, nmemb, (FILE*)datasource);
-}
-
-static unsigned int DecompressOgg(OggVorbis_File &vf, FILE *fwav)
-{
-	const int BUF_SIZE = 128*1024;
-	char *buf = new char[BUF_SIZE];
-
-	if (!buf)
-		return 0;
-
-	unsigned int decompressed_bytes = 0;
+	char buf[BUF_SIZE];
 
 	// read until EOF
 	for (;;)
 	{
 		int stridx;
-		long r = ov_read(&vf, buf, BUF_SIZE, 0, sizeof(short), 1, &stridx);
+		long frames = ov_read(vf, buf, BUF_SIZE, 0, sizeof(short), 1, &stridx) / vf->vi->channels / sizeof(short);
 
 		if (stridx)
 			// only interested in bit-stream 0
 			continue;
 
-		if (r <= 0)
+		if (frames <= 0)
 			break;
 
-		fwrite(buf, 1, r, fwav);
-
-		decompressed_bytes += r;
+		if (frames != (long)drwav_write_pcm_frames(wav, frames, buf))
+			return false;
 	}
-
-	delete[] buf;
-
-	return decompressed_bytes;
-}
-
-bool ConvertOggFile(FILE *f, FILE *fwav)
-{
-	if (!f)
-		return false;
-
-	ov_callbacks callbacks = { OggReadFile, NULL, NULL, NULL };
-	OggVorbis_File vf;
-
-	if (ov_open_callbacks(f, &vf, NULL, 0, callbacks) < 0)
-		return false;
-
-	InitWavFile(fwav);
-
-	unsigned int outbytes = DecompressOgg(vf, fwav);
-	if (!outbytes)
-	{
-		ov_clear(&vf);
-		return false;
-	}
-
-	if ( !FinalizeWavFile(fwav, vf.vi->rate, vf.vi->channels) )
-	{
-		ov_clear(&vf);
-		return false;
-	}
-
-	ov_clear(&vf);
 
 	return true;
+}
+
+bool ConvertOggFile(const char *name, const char *wavname)
+{
+	if (!name || !wavname)
+		return false;
+
+	OggVorbis_File vf;
+
+	if (ov_fopen(name, &vf) < 0)
+		return false;
+
+	drwav wav;
+	drwav_data_format fmt = { drwav_container_riff, DR_WAVE_FORMAT_PCM, (drwav_uint32)vf.vi->channels, (drwav_uint32)vf.vi->rate, 16 };
+	if (DRWAV_TRUE != drwav_init_file_write(&wav, wavname, &fmt, NULL))
+	{
+		ov_clear(&vf);
+		return false;
+	}
+
+	bool result = DecompressOgg(&vf, &wav);
+
+	drwav_uninit(&wav);
+	ov_clear(&vf);
+
+	return result;
 }
 
 const char* GetOggVersion()
@@ -374,5 +202,268 @@ const char* GetOggVersion()
 		s += 9;
 	return s;
 }
+#endif
 
+/////////////////////////////////////////////////////////////////////
+// OPUS SUPPORT
+
+#ifdef OPUS_SUPPORT
+static bool DecompressOpus(OggOpusFile *of, drwav *wav)
+{
+	opus_int16 buf[BUF_SIZE / sizeof(opus_int16)];
+
+	// read until EOF
+	for (;;)
+	{
+		int lnkidx;
+		int frames = op_read(of, buf, BUF_SIZE / sizeof(opus_int16), &lnkidx);
+
+		if (lnkidx)
+			// only interested in bit-stream 0
+			continue;
+
+		if (frames <= 0)
+			break;
+
+		if (frames != (int)drwav_write_pcm_frames(wav, frames, buf))
+			return false;
+	}
+
+	return true;
+}
+
+bool ConvertOpusFile(const char *name, const char *wavname)
+{
+	if (!name || !wavname)
+		return false;
+
+	OggOpusFile *of = op_open_file(name, NULL);
+	if (NULL == of)
+		return false;
+
+	drwav wav;
+	drwav_data_format fmt = { drwav_container_riff, DR_WAVE_FORMAT_PCM, (drwav_uint32)op_channel_count(of, 0), 48000, 16 };
+	if (DRWAV_TRUE != drwav_init_file_write(&wav, wavname, &fmt, NULL))
+	{
+		op_free(of);
+		return false;
+	}
+
+	bool success = DecompressOpus(of, &wav);
+
+	drwav_uninit(&wav);
+	op_free(of);
+
+	return success;
+}
+
+const char* GetOpusVersion()
+{
+	return opus_get_version_string();
+}
+#endif
+
+/////////////////////////////////////////////////////////////////////
+// FLAC SUPPORT
+
+#ifdef FLAC_SUPPORT
+static FLAC__StreamDecoderWriteStatus FlacWriteBuf(const FLAC__StreamDecoder *dec, const FLAC__Frame *frame, const FLAC__int32 * const buf[], void *data)
+{
+	uint32_t ch = FLAC__stream_decoder_get_channels(dec);
+	uint32_t bps = FLAC__stream_decoder_get_bits_per_sample(dec) >> 3;
+
+	if (ch == 0 || bps == 0 || NULL == data || BUF_SIZE < frame->header.blocksize * ch * bps)
+		return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
+
+	FLAC__uint8 outBuf[BUF_SIZE];
+	FLAC__uint8 *pOutBuf = outBuf;
+	drwav_uint64 w = 0;
+
+	switch (FLAC__stream_decoder_get_bits_per_sample(dec))
+	{
+		case 8:
+			for (size_t i = 0; i < frame->header.blocksize; i++)
+			{
+				for (uint32_t j = 0; j < ch; j++)
+				{
+					FLAC__int32 s = buf[j][i];
+					*(pOutBuf++) = (FLAC__uint8)(s + 128);
+				}
+				w++;
+			}
+			break;
+		case 16:
+			for (size_t i = 0; i < frame->header.blocksize; i++)
+			{
+				for (uint32_t j = 0; j < ch; j++)
+				{
+					FLAC__int32 s = buf[j][i];
+					*(FLAC__int16*)pOutBuf = (FLAC__int16)s;
+					pOutBuf += sizeof(FLAC__int16)/sizeof(FLAC__uint8);
+				}
+				w++;
+			}
+			break;
+		case 24:
+			for (size_t i = 0; i < frame->header.blocksize; i++)
+			{
+				for (uint32_t j = 0; j < ch; j++)
+				{
+					FLAC__int32 s = buf[j][i];
+					*(pOutBuf++) = (FLAC__uint8)s;
+					*(pOutBuf++) = (FLAC__uint8)(s >> 8);
+					*(pOutBuf++) = (FLAC__uint8)(s >> 16);
+				}
+				w++;
+			}
+			break;
+		case 32:
+			for (size_t i = 0; i < frame->header.blocksize; i++)
+			{
+				for (uint32_t j = 0; j < ch; j++)
+				{
+					FLAC__int32 s = buf[j][i];
+					*(FLAC__int32*)pOutBuf = s;
+					pOutBuf += sizeof(FLAC__int32)/sizeof(FLAC__uint8);
+				}
+				w++;
+			}
+			break;
+		default:
+			return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
+	}
+
+	if (w != drwav_write_pcm_frames((drwav*)data, w, outBuf))
+		return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
+
+	return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
+}
+
+static void FlacError(const FLAC__StreamDecoder *, FLAC__StreamDecoderErrorStatus, void *) {}
+
+bool ConvertFlacFile(const char *name, const char *wavname)
+{
+	if (!name || !wavname)
+		return false;
+
+	char magic[4] = { 0 };
+	{
+		FILE *f = fopen(name, "rb");
+		if (!f)
+			return false;
+
+		fread(magic, 4, sizeof(char), f);
+		fclose(f);
+	}
+
+	FLAC__Metadata_Chain *mc = FLAC__metadata_chain_new();
+	if (!mc)
+		return false;
+
+	bool init = true;
+
+	if (!strncmp(magic, "fLaC", 4))
+	{
+		if (!FLAC__metadata_chain_read(mc, name))
+			init = false;;
+	}
+	else if (FLAC_API_SUPPORTS_OGG_FLAC)
+	{
+		if (!FLAC__metadata_chain_read_ogg(mc, name))
+			init = false;
+	}
+	else
+		init = false;
+
+	if (!init)
+	{
+		FLAC__metadata_chain_delete(mc);
+		return false;
+	}
+
+	FLAC__Metadata_Iterator *mi = FLAC__metadata_iterator_new();
+	if (!mi)
+	{
+		FLAC__metadata_chain_delete(mc);
+		return false;
+	}
+
+	// streaminfo must always be first
+	FLAC__metadata_iterator_init(mi, mc);
+	if (FLAC__metadata_iterator_get_block_type(mi) != FLAC__METADATA_TYPE_STREAMINFO)
+	{
+		FLAC__metadata_chain_delete(mc);
+		FLAC__metadata_iterator_delete(mi);
+		return false;
+	}
+
+	FLAC__StreamMetadata *metadata = FLAC__metadata_iterator_get_block(mi);
+	if (metadata->data.stream_info.bits_per_sample < 8
+		|| metadata->data.stream_info.bits_per_sample > 32
+		|| metadata->data.stream_info.bits_per_sample % 8 != 0)
+	{
+		FLAC__metadata_chain_delete(mc);
+		FLAC__metadata_iterator_delete(mi);
+		return false;
+	}
+
+	uint32_t ch = metadata->data.stream_info.channels;
+	uint32_t sr = metadata->data.stream_info.sample_rate;
+	uint32_t bps = metadata->data.stream_info.bits_per_sample;
+
+	FLAC__metadata_chain_delete(mc);
+	FLAC__metadata_iterator_delete(mi);
+
+	FLAC__StreamDecoder *dec = FLAC__stream_decoder_new();
+	if (!dec)
+		return false;
+
+	drwav wav;
+
+	if (!strncmp(magic, "fLaC", 4))
+	{
+		if (FLAC__STREAM_DECODER_INIT_STATUS_OK != FLAC__stream_decoder_init_file(dec, name, FlacWriteBuf, NULL, FlacError, &wav))
+			init = false;
+	}
+	else if (FLAC_API_SUPPORTS_OGG_FLAC)
+	{
+		if (FLAC__STREAM_DECODER_INIT_STATUS_OK != FLAC__stream_decoder_init_ogg_file(dec, name, FlacWriteBuf, NULL, FlacError, &wav))
+			init = false;
+	}
+	else
+		init = false;
+
+	if (!init)
+	{
+		FLAC__stream_decoder_delete(dec);
+		return false;
+	}
+
+	drwav_data_format fmt = { drwav_container_riff, DR_WAVE_FORMAT_PCM, ch, sr, bps };
+	if (DRWAV_TRUE != drwav_init_file_write(&wav, wavname, &fmt, NULL))
+	{
+		FLAC__stream_decoder_finish(dec);
+		FLAC__stream_decoder_delete(dec);
+		return false;
+	}
+
+	bool success = FLAC__stream_decoder_process_until_end_of_stream(dec);
+
+	drwav_uninit(&wav);
+	FLAC__stream_decoder_finish(dec);
+	FLAC__stream_decoder_delete(dec);
+
+	return success;
+}
+
+const char* GetFlacVersion()
+{
+	static char flacver[24] = { 0 };
+	if (!*flacver)
+	{
+		strcpy(flacver, "libFLAC ");
+		strncat(flacver, FLAC__VERSION_STRING, sizeof(flacver) - 9);
+	}
+	return flacver;
+}
 #endif

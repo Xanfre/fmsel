@@ -20,12 +20,15 @@
 #include "os.h"
 #include "archive.h"
 #include "lang.h"
-#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+#if defined(T3_SUPPORT) || defined(GLML_SUPPORT)
 #include "glml.h"
 #endif
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#if __cplusplus >= 201103L
+#include <stdint.h>
+#endif
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -50,11 +53,6 @@
 #define _chmod chmod
 #define _mkdir(a) mkdir(a,0755)
 #define _rmdir rmdir
-#endif
-#ifdef _MSC_VER
-#include <stddef.h>
-#else
-#include <cstdint>
 #endif
 #include <errno.h>
 #include <FL/Fl.H>
@@ -85,7 +83,9 @@
 #undef __int64
 #endif
 #include "lib7zip.h"
+#ifdef AUDIO_SUPPORT
 #include "mp3.h"
+#endif
 
 #include "icons.h"
 
@@ -304,7 +304,7 @@ class Fl_FM_Filter_Button;
 static BOOL g_bDbModified = FALSE;
 static BOOL g_bRunningEditor = FALSE;
 static BOOL g_bRunningShock = FALSE;
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 static BOOL g_bRunningThief3 = FALSE;
 #endif
 
@@ -361,7 +361,7 @@ static const char* GenericHtmlTextPopupFull(const char *caption, const char *htm
 static void ViewAbout();
 static string TextToHtml(const char *text);
 static string GetListName(const FMEntry *fm);
-#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+#if defined(T3_SUPPORT) || defined(GLML_SUPPORT)
 static void GetNiceNameFromGlml(FMEntry *fm);
 #endif
 
@@ -548,6 +548,16 @@ enum
 	DATEFMT_NUM_FORMATS
 };
 
+enum
+{
+	CMPSND_MP3,
+	CMPSND_OGG,
+	CMPSND_OPUS,
+	CMPSND_FLAC,
+
+	CMPSND_NUM_FORMATS
+};
+
 static const char *g_DateFmt[DATEFMT_NUM_FORMATS] =
 {
 	"%x",
@@ -612,8 +622,8 @@ struct FMSelConfig
 	// review diffs before doing a differential backup
 	BOOL bReviewDiffBackup;
 
-#ifdef OGG_SUPPORT
-	BOOL bDecompressOGG;
+#ifdef AUDIO_SUPPORT
+	BOOL bDecompressAudio;
 #endif
 	BOOL bGenerateMissFlags;
 
@@ -689,8 +699,8 @@ public:
 		uiscale = 4;
 		bDiffBackups = FALSE;
 		bReviewDiffBackup = FALSE;
-#ifdef OGG_SUPPORT
-		bDecompressOGG = FALSE;
+#ifdef AUDIO_SUPPORT
+		bDecompressAudio = FALSE;
 #endif
 		bGenerateMissFlags = TRUE;
 		dwLastProcessID = 0;
@@ -977,8 +987,8 @@ public:
 		if (uiscale > 4) fprintf(f, "Scale=%d\n", uiscale-4);
 		if (bDiffBackups) fprintf(f, "BackupType=%d\n", !!bDiffBackups);
 		if (bReviewDiffBackup) fprintf(f, "ReviewDiffBackup=%d\n", bReviewDiffBackup);
-#ifdef OGG_SUPPORT
-		if (bDecompressOGG) fprintf(f, "ConvertOGG=%d\n", bDecompressOGG);
+#ifdef AUDIO_SUPPORT
+		if (bDecompressAudio) fprintf(f, "ConvertAudio=%d\n", bDecompressAudio);
 #endif
 		if (!bGenerateMissFlags) fprintf(f, "GenerateMissFlags=%d\n", bGenerateMissFlags);
 		if ( !archiveRepo.empty() ) fprintf(f, "ArchiveRoot=%s\n", archiveRepo.c_str());
@@ -1131,9 +1141,9 @@ public:
 			bDiffBackups = !!atoi(val);
 		else if ( !_stricmp(valname, "ReviewDiffBackup") )
 			bReviewDiffBackup = !!atoi(val);
-#ifdef OGG_SUPPORT
-		else if ( !_stricmp(valname, "ConvertOGG") )
-			bDecompressOGG = !!atoi(val);
+#ifdef AUDIO_SUPPORT
+		else if ( !_stricmp(valname, "ConvertAudio") )
+			bDecompressAudio = !!atoi(val);
 #endif
 		else if ( !_stricmp(valname, "GenerateMissFlags") )
 			bGenerateMissFlags = !!atoi(val);
@@ -1215,7 +1225,7 @@ struct FMEntry
 	};
 
 public:
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	char name[262];			// dir name (max storage name len supported by resource manager in dark is 30, but T3 can have more)
 #else
 	char name[32];			// dir name (30 is max storage name len supported by resource manager in dark)
@@ -1986,7 +1996,7 @@ static void GenerateArchiveInstallName(const char *name, FMEntry *fm)
 		if ( strchr(illegal_chars, *s) )
 			*s = '_';
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	// thief 3 can handle long dir names
 	int bufsz = g_bRunningThief3 ? 260 : 30;
 
@@ -2003,7 +2013,7 @@ static void GenerateArchiveInstallName(const char *name, FMEntry *fm)
 	if ( GetFM(ftitle) )
 	{
 		// not unique, append "(<number>)" with increasing numbers until unique is found
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		char altname[262];
 #else
 		char altname[32];
@@ -2014,7 +2024,7 @@ static void GenerateArchiveInstallName(const char *name, FMEntry *fm)
 		{
 			sprintf(seq, "(%d)", i+2);
 			int l = strlen(seq);
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 			if (n+l > bufsz)
 			{
 				strcpy(altname, ftitle);
@@ -2060,7 +2070,7 @@ static void EnumFmArchive(const char *name_raw)
 		ApplyFmIni(fm, g_bRunningShock);
 		AutoScanReleaseDate(fm, TRUE);
 
-#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+#if defined(T3_SUPPORT) || defined(GLML_SUPPORT)
 		GetNiceNameFromGlml(fm);
 #endif
 
@@ -2151,7 +2161,7 @@ static void ScanArchiveRepo(const char *subdirname = NULL, int depth = 0)
 
 static void EnumFmDir(const char *name)
 {
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	if (strlen(name) > (size_t)(g_bRunningThief3 ? 260 : 30))
 #else
 	if (strlen(name) > 30)
@@ -2408,7 +2418,7 @@ new_block:
 					state = 0;
 					continue;
 				}
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 				else if (len > (g_bRunningThief3 ? 260 : 30))
 #else
 				else if (len > 30)
@@ -3380,7 +3390,7 @@ static BOOL ReadModIni(FMEntry *fm, const FMEntry *realfm)
 
 static const char *g_doctypes[] = {
 	"rtf", "wri", "txt", "html", "htm", "doc", "pdf"
-#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+#if defined(T3_SUPPORT) || defined(GLML_SUPPORT)
 	, "glml"
 #endif
 };
@@ -3643,7 +3653,7 @@ static BOOL FmReadFileToBuffer(const FMEntry *fm, const char *fname, char *&data
 // otherwise only the filename without path is returned
 static BOOL FmGetPhysicalFileFromArchive(FMEntry *fm, const char *filename, string &outfile, int bReturnWithPath)
 {
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	// the source file may have a path, remove it for the temp file
 	string nm = filename;
 	size_t last_sep_pos = nm.find_last_of("/\\");
@@ -3695,7 +3705,7 @@ static BOOL FmOpenFileWithAssociatedApp(FMEntry *fm, const char *filename)
 		if ( !FmGetPhysicalFileFromArchive(fm, filename, s, FALSE) )
 			return FALSE;
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		string converted_glml = GlmlToHtml(s.c_str(), g_sTempDirAbs.c_str());
 		if (converted_glml.empty())
 			return OpenFileWithAssociatedApp(s.c_str(), g_sTempDirAbs.c_str());
@@ -3713,14 +3723,14 @@ static BOOL FmOpenFileWithAssociatedApp(FMEntry *fm, const char *filename)
 		if (_snprintf_s(pathname, sizeof(pathname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 			return FALSE;
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		string converted_glml = GlmlToHtml(filename, pathname);
 		if (converted_glml.empty())
 			// filename may contain a path here ("fan mission extras\<doc>").
 			// the resulting complete path is correct, though (and it works)
 #endif
 		return OpenFileWithAssociatedApp(filename, pathname);
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		else
 		{
 			GenericHtmlTextPopupFull(NULL, converted_glml.c_str(), (g_cfg.bLargeFont ? 976 : 800));
@@ -4221,7 +4231,7 @@ static BOOL ApplyFmIni(FMEntry *fm, BOOL bFallbackModIni)
 	return TRUE;
 }
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 // build a list of all files in path and any subdirs to depth maxdepth (path being depth 0). the entries in
 // list are relative to path
 static int ListFilesInDirPruned(const char *path, unsigned int maxdepth, std::vector<std::string> &list)
@@ -4324,7 +4334,7 @@ static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, vector<string> &files, vec
 	return FALSE;
 }
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 static BOOL ScanForTypeAndSetReleaseDate(FMEntry *fm, vector<string> &files, const int nFiles,
 										 const char **filetypes, int nTypes, time_t tmMin, time_t tmMax)
 {
@@ -4418,7 +4428,7 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 		// couldn't get date from fm.ini, now try to get date from the modified timestamp of some appropiate files
 		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 			return FALSE;
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		vector<string> files;
 
 		// get a list of all files to depth 1 (to allow for various spellings of
@@ -4434,7 +4444,7 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 		// scan for documentation/readme files (txt/rtf/wri/doc/pdf) and use date from that
 		bResult = ScanForTypeAndSetReleaseDate(fm, files, nFiles, g_doctypes, sizeof(g_doctypes)/sizeof(g_doctypes[0]), tmMin, tmMax);
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		if (!g_bRunningThief3 && !bResult)
 #else
 		if (!bResult)
@@ -4442,7 +4452,7 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 			// didn't find any documentation files, now scan for *.mis files and use the date from that
 			bResult = ScanForTypeAndSetReleaseDate(fm, files, nFiles, mistypes, sizeof(mistypes)/sizeof(mistypes[0]), tmMin, tmMax);
 
-#ifndef SUPPORT_T3
+#ifndef T3_SUPPORT
 		// free data
 		fl_filename_free_list(&files, nFiles);
 #endif
@@ -4454,7 +4464,7 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 		vector<string> files;
 		vector<time_t> ftimes;
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		// look in the archive root and all first level directories to allow for various spellings of
 		// garrettloader's "fan mission extras" directory
 		int nFiles = ListFilesInArchivePruned(fm->GetArchiveFilePath().c_str(), 1, files, &ftimes);
@@ -4467,7 +4477,7 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 		// scan for documentation/readme files (txt/rtf/wri/doc/pdf) and use date from that
 		bResult = ScanForTypeAndSetReleaseDate(fm, files, ftimes, nFiles, g_doctypes, sizeof(g_doctypes)/sizeof(g_doctypes[0]), tmMin, tmMax);
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		if (!g_bRunningThief3 && !bResult)
 #else
 		if (!bResult)
@@ -4609,7 +4619,7 @@ static string UnescapeString(const char *s)
 static __inline int GetTypeScore(const char *ext)
 {
 	const int nTypes = sizeof(g_doctypes)/sizeof(g_doctypes[0]);
-#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+#if defined(T3_SUPPORT) || defined(GLML_SUPPORT)
 	// special treatment for glml, because it is known to be a readme
 	if ( !_stricmp(ext, g_doctypes[nTypes-1]) )
 		return 9000;
@@ -4717,7 +4727,7 @@ static BOOL GetDocFilesFromArch(FMEntry *fm, vector<string> &list)
 	int i;
 	vector<string> files;
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	// look in the archive root and all first level directories to allow for various spellings of
 	// garrettloader's "fan mission extras" directory
 	int nFiles = ListFilesInArchivePruned(fm->GetArchiveFilePath().c_str(), 1, files);
@@ -4782,7 +4792,7 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 		return FALSE;
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	vector<string> files;
 
 	// get a list of all files to depth 1 (to allow for various spellings of
@@ -4803,7 +4813,7 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 
 	for (i=0; i<nFiles; i++)
 	{
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		const string &str = files[i];
 		const char *s = str.c_str();
 		int len = str.length();
@@ -4850,7 +4860,7 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 	for (i=0; i<(int)tmplist.size(); i++)
 		list.push_back(tmplist[i]);
 
-#ifndef SUPPORT_T3
+#ifndef T3_SUPPORT
 	// free data
 	fl_filename_free_list(&files, nFiles);
 #endif
@@ -5158,7 +5168,7 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 			goto abort;*/
 
 		// thief saves
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		// for thief3 try the original folder name first and also back up the options override file
 		if ( (!g_bRunningThief3 && !BackupOptDirToArchive(fm, "saves"))
 			|| (g_bRunningThief3 && (!BackupOptDirToArchive(fm, "SaveGames") || !BackupOptDirToArchive(fm, "Saves")
@@ -5170,7 +5180,7 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 	}
 
 	// shock saves "save_*" and also "saves_*" for potential future thief multiplayer saves
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	if (!g_bRunningThief3)
 #endif
 	{
@@ -5208,7 +5218,7 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 	}
 
 	// screenshots
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	if ( !BackupOptDirToArchive(fm, g_bRunningThief3 ? "ScreenShots" : "screenshots") )
 #else
 	if ( !BackupOptDirToArchive(fm, "screenshots") )
@@ -5447,302 +5457,117 @@ static bool RemoveEnumeratedArchiveFile(const char *fname, void *p)
 	return true;
 }
 
-static bool EnumMP3Files(const char *fname, void *p)
+#ifdef AUDIO_SUPPORT
+static bool EnumAudioFiles(const char *fname, void *p)
 {
 	ASSERT(p != NULL);
 
-	std::list<string> &list = *(std::list<string>*)p;
-
-	const int n = strlen(fname);
-	if (n > 4 && !_stricmp(fname+n-4, ".mp3"))
-		list.push_back(fname);
-
-	return true;
-}
-
-#ifdef OGG_SUPPORT
-static bool EnumMP3OGGFiles(const char *fname, void *p)
-{
-	ASSERT(p != NULL);
-
-	std::list<string> *list = (std::list<string>*)p;
+	std::list<std::pair<string,int>> *list = (std::list<std::pair<string,int>>*)p;
 
 	const int n = strlen(fname);
 	if (n > 4)
 	{
+#ifdef MP3_SUPPORT
 		if ( !_stricmp(fname+n-4, ".mp3") )
-			list[0].push_back(fname);
-		else if ( !_stricmp(fname+n-4, ".ogg") )
-			list[1].push_back(fname);
+		{
+			list->push_back(std::pair<string,int>(fname,CMPSND_MP3));
+			return true;
+		}
+#endif
+#ifdef OGG_SUPPORT
+		if ( !_stricmp(fname+n-4, ".ogg") )
+		{
+			list->push_back(std::pair<string,int>(fname,CMPSND_OGG));
+			return true;
+		}
+#endif
+#ifdef OPUS_SUPPORT
+		if ( !_stricmp(fname+n-4, ".opus") )
+		{
+			list->push_back(std::pair<string,int>(fname,CMPSND_OPUS));
+			return true;
+		}
+#endif
+#ifdef FLAC_SUPPORT
+		if ( !_stricmp(fname+n-4, ".flac") || !_stricmp(fname+n-4, ".oga") )
+		{
+			list->push_back(std::pair<string,int>(fname,CMPSND_FLAC));
+			return true;
+		}
+#endif
 	}
 
 	return true;
 }
 #endif
 
-struct MP3Context
+#if AUDIO_SUPPORT
+struct AudioContext
 {
-	std::list<string> *mp3files;
+	std::list<std::pair<string,int>> *audiofiles;
 	const char *installdir;
 };
 
-static void* MP3Thread(void *p)
+static void* AudioThread(void *p)
 {
-	MP3Context *ctx = (MP3Context*)p;
+	AudioContext *ctx = (AudioContext*)p;
 
-	std::list<string> &mp3files = *ctx->mp3files;
+	std::list<std::pair<string,int>> &audiofiles = *ctx->audiofiles;
 	const char *installdir = ctx->installdir;
 
-	string mp3, wav;
+	string cmp, wav;
 	BOOL bOK = TRUE;
 
-	for (std::list<string>::iterator it=mp3files.begin(); it!=mp3files.end(); it++, StepProgress(1))
+	for (std::list<std::pair<string,int>>::iterator it=audiofiles.begin(); it!=audiofiles.end(); it++, StepProgress(1))
 	{
-		mp3 = installdir;
-		mp3 += DIRSEP;
-		mp3 += *it;
+		cmp = installdir;
+		cmp += DIRSEP;
+		cmp += it->first;
 
-		wav = mp3.substr(0, mp3.length()-3);
+		wav = cmp.substr(0, cmp.length()-3);
 		wav += "wav";
 
-		hip_t lh = lame_decode_init();
-		if (!lh)
+		BOOL bConverted = FALSE;
+		switch (it->second)
 		{
-			bOK = FALSE;
-			continue;
-		}
-
-		FILE *fmp3 = fopen(mp3.c_str(), "rb");
-		if (!fmp3)
-		{
-			bOK = FALSE;
-			lame_decode_exit(lh);
-			continue;
-		}
-		FILE *fwav = fopen(wav.c_str(), "wb");
-		if (!fwav)
-		{
-			bOK = FALSE;
-			fclose(fmp3);
-			lame_decode_exit(lh);
-			continue;
-		}
-
-		if ( !InitMp3File(fmp3) )
-		{
-			// not recognized as an mp3 file, rename to wav and hope for the best
-
-			fclose(fmp3);
-			fclose(fwav);
-
-			// delete failed wav
-			remove_forced( wav.c_str() );
-
-			rename(mp3.c_str(), wav.c_str());
-
-			lame_decode_exit(lh);
-
-			continue;
-		}
-
-		InitWavFile(fwav);
-
-		sMp3data mp3data = {};
-		short pcm_l[1152] = {0}, pcm_r[1152] = {0};
-		short pcm_lr[1152*2];
-		unsigned char buf[1024];
-		int r = 0, l = 0;
-		int skip_start = 0, skip_end = 0;
-
-		// decode file
-
-		BOOL bFileFailed = FALSE;
-
-		while (!mp3data.header_parsed)
-		{
-			l = fread(buf, 1, sizeof(buf), fmp3);
-			if (l < 0)
-			{
-				bFileFailed = TRUE;
+#ifdef MP3_SUPPORT
+			case CMPSND_MP3:
+				bConverted = ConvertMp3File(cmp.c_str(), wav.c_str());
 				break;
-			}
-			r = lame_decode1_headersB(lh, buf, l, pcm_l, pcm_r, &mp3data, &skip_start, &skip_end);
-			if (r < 0)
-			{
-				bFileFailed = TRUE;
+#endif
+#ifdef OGG_SUPPORT
+			case CMPSND_OGG:
+				bConverted = ConvertOggFile(cmp.c_str(), wav.c_str());
 				break;
-			}
+#endif
+#ifdef OPUS_SUPPORT
+			case CMPSND_OPUS:
+				bConverted = ConvertOpusFile(cmp.c_str(), wav.c_str());
+				break;
+#endif
+#ifdef FLAC_SUPPORT
+			case CMPSND_FLAC:
+				bConverted = ConvertFlacFile(cmp.c_str(), wav.c_str());
+				break;
+#endif
+			default:
+				continue;
 		}
-
-		// sanity check to avoid crashes
-		if (mp3data.channels < 0 || mp3data.channels > 2
-			|| mp3data.frame_size < 0 || mp3data.frame_size > 1152)
-			bFileFailed = TRUE;
-
-		const int nSampleRate = mp3data.sample_rate;
-		const int nChannels = mp3data.channels>1 ? 2 : 1;
-
-		if (!bFileFailed)
+		if (bConverted)
 		{
-			if (r)
-				goto output_data;
+			CloneFileMTimeOS(cmp.c_str(), wav.c_str());
 
-			do
-			{
-				while (l > 0 && r <= 0)
-				{
-					l = fread(buf, 1, sizeof(buf), fmp3);
-					if (l < 0)
-					{
-						bFileFailed = TRUE;
-						break;
-					}
-					r = lame_decode1_headers(lh, buf, l, pcm_l, pcm_r, &mp3data);
-					ASSERT(r <= 1152);
-					if (r < 0)
-					{
-						bFileFailed = TRUE;
-						break;
-					}
-					if (!r)
-						r = lame_decode1_headers(lh, buf, 0, pcm_l, pcm_r, &mp3data);
-				}
-
-				if (bFileFailed)
-					break;
-
-output_data:
-				do
-				{
-					if (nChannels > 1)
-					{
-						// write L/R interleaved
-						const short *left = pcm_l, *right = pcm_r;
-						short *lr = pcm_lr;
-						for (int i=0; i<r; i++)
-						{
-							*lr++ = *left++;
-							*lr++ = *right++;
-						}
-						fwrite(pcm_lr, sizeof(short), r*2, fwav);
-					}
-					else
-						fwrite(pcm_l, sizeof(short), r, fwav);
-
-					// check for buffered data still in the decoder
-					r = lame_decode1_headers(lh, buf, 0, pcm_l, pcm_r, &mp3data);
-				}
-				while (r > 0);
-
-				if (r < 0)
-				{
-					bFileFailed = TRUE;
-					break;
-				}
-
-				r = 0;
-			}
-			while (l > 0);
-		}
-
-		//
-
-		if (bFileFailed || !FinalizeWavFile(fwav, nSampleRate, nChannels))
-		{
-			bOK = FALSE;
-
-			fclose(fmp3);
-			fclose(fwav);
-
-			// delete failed wav
-			remove_forced( wav.c_str() );
+			// delete compressed sound
+			remove_forced( cmp.c_str() );
 		}
 		else
-		{
-			fclose(fmp3);
-			fclose(fwav);
-
-			CloneFileMTimeOS(mp3.c_str(), wav.c_str());
-
-			// delete mp3
-			remove_forced( mp3.c_str() );
-		}
-
-		lame_decode_exit(lh);
-	}
-
-	if (!bOK)
-	{
-		EndProgress(0);
-		return 0;
-	}
-
-	EndProgress(1);
-
-	return (void*)1;
-}
-
-#ifdef OGG_SUPPORT
-struct OGGContext
-{
-	std::list<string> *oggfiles;
-	const char *installdir;
-};
-
-static void* OGGThread(void *p)
-{
-	OGGContext *ctx = (OGGContext*)p;
-
-	std::list<string> &oggfiles = *ctx->oggfiles;
-	const char *installdir = ctx->installdir;
-
-	string ogg, wav;
-	BOOL bOK = TRUE;
-
-	for (std::list<string>::iterator it=oggfiles.begin(); it!=oggfiles.end(); it++, StepProgress(1))
-	{
-		ogg = installdir;
-		ogg += DIRSEP;
-		ogg += *it;
-
-		wav = ogg.substr(0, ogg.length()-3);
-		wav += "wav";
-
-		FILE *fogg = fopen(ogg.c_str(), "rb");
-		if (!fogg)
-		{
-			bOK = FALSE;
-			continue;
-		}
-		FILE *fwav = fopen(wav.c_str(), "wb");
-		if (!fwav)
-		{
-			bOK = FALSE;
-			fclose(fogg);
-			continue;
-		}
-
-		if ( !ConvertOggFile(fogg, fwav) )
 		{
 			// conversion failed
 
 			bOK = FALSE;
 
-			fclose(fogg);
-			fclose(fwav);
-
 			// delete failed wav
 			remove_forced( wav.c_str() );
-		}
-		else
-		{
-			fclose(fogg);
-			fclose(fwav);
-
-			CloneFileMTimeOS(ogg.c_str(), wav.c_str());
-
-			// delete ogg
-			remove_forced( ogg.c_str() );
 		}
 	}
 
@@ -5758,56 +5583,29 @@ static void* OGGThread(void *p)
 }
 #endif
 
-static BOOL ConvertMP3Files(std::list<string> &mp3files, const char *installdir)
+#ifdef AUDIO_SUPPORT
+static BOOL ConvertAudioFiles(std::list<std::pair<string,int>> &audiofiles, const char *installdir)
 {
-	if ( mp3files.empty() )
+	if ( audiofiles.empty() )
 		return TRUE;
 
-	InitProgress(mp3files.size(), $("Converting MP3s..."));
+	InitProgress(audiofiles.size(), $("Converting Audio..."));
 
 	BOOL bRes;
 
-	MP3Context ctx = { &mp3files, installdir };
+	AudioContext ctx = { &audiofiles, installdir };
 
-	if ( !CreateThreadOS(MP3Thread, &ctx) )
+	if ( !CreateThreadOS(AudioThread, &ctx) )
 	{
 		// if thread creation fails then run non-threaded (without progress bar), shouldn't normally happen
 		TermProgress();
-		bRes = (MP3Thread(&ctx) != NULL);
+		bRes = (AudioThread(&ctx) != NULL);
 	}
 	else
 		bRes = RunProgress();
 
 	if (!bRes)
-		if ( !fl_choice($("MP3 conversion failed partially or completely, proceed anyway?"), fl_cancel, fl_ok, NULL) )
-			return FALSE;
-
-	return TRUE;
-}
-
-#ifdef OGG_SUPPORT
-static BOOL ConvertOGGFiles(std::list<string> &oggfiles, const char *installdir)
-{
-	if ( oggfiles.empty() )
-		return TRUE;
-
-	InitProgress(oggfiles.size(), $("Converting OGGs..."));
-
-	BOOL bRes;
-
-	OGGContext ctx = { &oggfiles, installdir };
-
-	if ( !CreateThreadOS(OGGThread, &ctx) )
-	{
-		// if thread creation fails then run non-threaded (without progress bar), shouldn't normally happen
-		TermProgress();
-		bRes = (OGGThread(&ctx) != NULL);
-	}
-	else
-		bRes = RunProgress();
-
-	if (!bRes)
-		if ( !fl_choice($("OGG conversion failed partially or completely, proceed anyway?"), fl_cancel, fl_ok, NULL) )
+		if ( !fl_choice($("Audio conversion failed partially or completely, proceed anyway?"), fl_cancel, fl_ok, NULL) )
 			return FALSE;
 
 	return TRUE;
@@ -6061,36 +5859,21 @@ static BOOL InstallFM(FMEntry *fm)
 		return FALSE;
 	}
 
-	// get list of MP3s and if needed OGGs
-#ifdef OGG_SUPPORT
-	std::list<string> compressedSndFiles[2];
-	std::list<string> &mp3files = compressedSndFiles[0];
-	std::list<string> &oggfiles = compressedSndFiles[1];
-#else
-	std::list<string> compressedSndFiles;
-	std::list<string> &mp3files = compressedSndFiles;
+	// get list of compressed audio files
+#ifdef AUDIO_SUPPORT
+	std::list<std::pair<string,int>> compressedSndFiles;
 #endif
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	if (!g_bRunningThief3)
 	{
 #endif
-#ifdef OGG_SUPPORT
-	EnumFullArchive(archivepath.c_str(), g_cfg.bDecompressOGG ? EnumMP3OGGFiles : EnumMP3Files, &compressedSndFiles[0]);
-#else
-	EnumFullArchive(archivepath.c_str(), EnumMP3Files, &compressedSndFiles);
+#ifdef AUDIO_SUPPORT
+	if (g_cfg.bDecompressAudio)
+		EnumFullArchive(archivepath.c_str(), EnumAudioFiles, &compressedSndFiles);
 #endif
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	}
 #endif
-
-	BOOL bSupportsMP3 = FALSE;
-	if ( !mp3files.empty() )
-	{
-		bSupportsMP3 = InitMP3();
-		if (!bSupportsMP3
-			&& !fl_choice($("MP3 to WAV conversion not possible, download %s (see About box).\nFM will not work properly, install anyway?"), fl_cancel, fl_ok, NULL, MP3LIB))
-			return FALSE;
-	}
 
 	// get list of language packs
 	/*std::list<string> langpacks;
@@ -6122,11 +5905,9 @@ static BOOL InstallFM(FMEntry *fm)
 	else
 		strcpy(s2, $("N/A"));
 
-	if (!mp3files.empty() && bSupportsMP3)
-		sprintf(s1+strlen(s1), $(" + %d MP3 file(s), size unknown"), mp3files.size());
-#ifdef OGG_SUPPORT
-	if ( !oggfiles.empty() )
-		sprintf(s1+strlen(s1), $(" + %d OGG file(s), size unknown"), oggfiles.size());
+#ifdef AUDIO_SUPPORT
+	if ( !compressedSndFiles.empty() )
+		sprintf(s1+strlen(s1), $(" + %d compressed audio file(s), size unknown"), compressedSndFiles.size());
 #endif
 
 	// TODO: if bHasLangPacks then display a fancier install dialog with a droplist of available lang packs (and "None"),
@@ -6183,16 +5964,9 @@ static BOOL InstallFM(FMEntry *fm)
 		}
 	}
 
-	// convert MP3s to WAVs
-	if (bSupportsMP3 && !ConvertMP3Files(mp3files, tmpdir.c_str()))
-	{
-		DelTree( tmpdir.c_str() );
-
-		return FALSE;
-	}
-#ifdef OGG_SUPPORT
-	// convert OGGs to WAVs
-	if ( !ConvertOGGFiles(oggfiles, tmpdir.c_str()) )
+#ifdef AUDIO_SUPPORT
+	// convert compressed audio to WAVs
+	if ( !ConvertAudioFiles(compressedSndFiles, tmpdir.c_str()) )
 	{
 		DelTree( tmpdir.c_str() );
 
@@ -6201,7 +5975,7 @@ static BOOL InstallFM(FMEntry *fm)
 #endif
 
 	// generate Thief mission flags
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	if (!g_bRunningShock && !g_bRunningThief3 && g_cfg.bGenerateMissFlags)
 #else
 	if (!g_bRunningShock && g_cfg.bGenerateMissFlags)
@@ -6345,15 +6119,22 @@ static bool ClearIdenticalEnumeratedArchiveFile(const char *fname, unsigned __in
 		// remove identical file from hash
 		g_fileDiffInfoMap.erase(dataIter);
 	}
+#ifdef AUDIO_SUPPORT
 	else
 	{
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		if (!g_bRunningThief3)
 		{
 #endif
-		// if mp3 or ogg file then check if wav file exists with same name
+		// if compressed audio file then check if wav file exists with same name
 		const int n = strlen(fname);
-		if (n > 4 && (!_stricmp(fname+n-4, ".mp3") || !_stricmp(fname+n-4, ".ogg")))
+		if (n > 4
+			&& (!_stricmp(fname+n-4, ".mp3")
+				|| !_stricmp(fname+n-4, ".ogg")
+				|| !_stricmp(fname+n-4, ".opus")
+				|| !_stricmp(fname+n-4, ".flac")
+				|| !_stricmp(fname+n-4, ".oga"))
+			)
 		{
 			char wavname[MAX_PATH_BUF];
 			memcpy(wavname, fname, n-3);
@@ -6373,13 +6154,14 @@ static bool ClearIdenticalEnumeratedArchiveFile(const char *fname, unsigned __in
 				return true;
 			}
 		}
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		}
 #endif
 
 		// file was deleted from install
 		g_removedFiles.push_back(fname);
 	}
+#endif
 
 	return true;
 }
@@ -6469,7 +6251,7 @@ static BOOL UninstallFM(FMEntry *fm)
 				// remove install info from backup set
 				ClearDiffInfoFileEntry("fmsel.inf");
 				// remove thief checkpoint save
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 				if (!g_bRunningShock && !g_bRunningThief3)
 #else
 				if (!g_bRunningShock)
@@ -7033,7 +6815,7 @@ public:
 			CMD_BackupSaves,
 			CMD_BackupDiff,
 
-			CMD_ConvertOgg,
+			CMD_ConvertAudio,
 			CMD_GenerateMissFlags,
 
 			CMD_ArchivePath,
@@ -7124,19 +6906,19 @@ public:
 			MENU_RITEM($("Only Saves and Shots"), CMD_BackupSaves, !g_cfg.bDiffBackups);
 			MENU_RITEM($("All Changed Files"), CMD_BackupDiff, g_cfg.bDiffBackups);
 			MENU_END();
-#ifdef SUPPORT_T3
-#ifdef OGG_SUPPORT
+#ifdef T3_SUPPORT
+#ifdef AUDIO_SUPPORT
 		if (!g_bRunningThief3)
 #else
 		if (!g_bRunningShock || !g_bRunningThief3)
 #endif
-#elif !defined(OGG_SUPPORT)
+#elif !defined(AUDIO_SUPPORT)
 		if (!g_bRunningShock)
 #endif
 		{
 		MENU_SUB($("Install Options")); MENU_MOD_DISABLE(!g_cfg.bRepoOK); MENU_MOD_DIV();
-#ifdef OGG_SUPPORT
-			MENU_TITEM($("Convert OGG to WAV"), CMD_ConvertOgg, g_cfg.bDecompressOGG);
+#ifdef AUDIO_SUPPORT
+			MENU_TITEM($("Convert Audio to WAV"), CMD_ConvertAudio, g_cfg.bDecompressAudio);
 			if (!g_bRunningShock)
 #endif
 			MENU_TITEM($("Generate Mission Flags"), CMD_GenerateMissFlags, g_cfg.bGenerateMissFlags);
@@ -7246,9 +7028,9 @@ public:
 			g_cfg.OnModified();
 			break;
 
-#ifdef OGG_SUPPORT
-		case CMD_ConvertOgg:
-			g_cfg.bDecompressOGG = !g_cfg.bDecompressOGG;
+#ifdef AUDIO_SUPPORT
+		case CMD_ConvertAudio:
+			g_cfg.bDecompressAudio = !g_cfg.bDecompressAudio;
 			g_cfg.OnModified();
 			break;
 #endif
@@ -10466,7 +10248,7 @@ static string GetListName(const FMEntry *fm)
 	return name;
 }
 
-#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
+#if defined(T3_SUPPORT) || defined(GLML_SUPPORT)
 static void GetNiceNameFromGlml(FMEntry *fm)
 {
 	vector<string> list;
@@ -10953,26 +10735,6 @@ static void ViewAbout()
 	sprintf(msg,
 		"%s<br>" // $("FM selector and manager for dark engine games.")
 		"Licensed under the FLTK license.<br>"
-		"<br>"
-
-		"<center><font color=\"%s\"><hr></font></center>"
-
-#if defined(_M_X64) || defined(__amd64__)
-#define ARCHSTR "x86_64 / 64-bit"
-#else
-#define ARCHSTR "x86 / 32-bit"
-#endif
-		"%s <b>" MP3LIB "</b> (" ARCHSTR ") %s " FMSELLIB ".<br>" // $("To enable support for MP3 to WAV conversion during FM install, you must download"), $("and put it in the same directory as")
-#undef ARCHSTR
-		"<br>"
-		"%s<br>" // $("Links for binary downloads of the LAME MP3 library can be found on:")
-		"<a href=\"https://lame.sourceforge.net/links.php#Binaries\"><b>https://lame.sourceforge.net/links.php#Binaries</b></a><br>"
-		"<br>"
-		"%s<br>" // $("Direct link to the recommended site on that list:")
-#ifdef _WIN32
-		"<a href=\"https://www.rarewares.org/mp3-lame-libraries.php\"><b>https://www.rarewares.org/mp3-lame-libraries.php</b></a><br>"
-		"<br>"
-#endif
 
 		"<center><font color=\"%s\"><hr></font></center>"
 		"This program uses:<br>"
@@ -10984,35 +10746,58 @@ static void ViewAbout()
 		"<a href=\"https://www.fltk.org\"><b>https://www.fltk.org</b></a>"
 		"<br><br>"
 		"<b>" LIB_7ZIP_7ZIP_VERSION "</b><br>"
-		"<a href=\"https://code.google.com/archive/p/lib7zip/\"><b>https://code.google.com/archive/p/lib7zip/</b></a>"
+		"<a href=\"https://code.google.com/archive/p/lib7zip\"><b>https://code.google.com/archive/p/lib7zip</b></a>"
 		"<br><br>"
 		"<b>7-Zip dynamic library</b> (which is licensed under GNU LGPL)<br>"
 		"<a href=\"https://7-zip.org\"><b>https://7-zip.org</b></a>"
+#ifdef AUDIO_SUPPORT
+		"<br><br>"
+		"<b>%s</b><br>"
+		"<a href=\"https://github.com/mackron/dr_libs\"><b>https://github.com/mackron/dr_libs</b></a>"
+#ifdef MP3_SUPPORT
+		"<br><br>"
+		"<b>%s</b><br>"
+		"<a href=\"https://github.com/mackron/dr_libs\"><b>https://github.com/mackron/dr_libs</b></a>"
+#endif
 #ifdef OGG_SUPPORT
 		"<br><br>"
-		"<b>%s</b>, Copyright (c) 2002-2008 Xiph.org Foundation<br>"
-		"<a href=\"https://xiph.org/vorbis/\"><b>https://xiph.org/vorbis/</b></a>"
+		"<b>%s</b>, Copyright (c) 2002-2020 Xiph.org Foundation<br>"
+		"<a href=\"https://xiph.org/vorbis\"><b>https://xiph.org/vorbis</b></a>"
+#endif
+#ifdef OPUS_SUPPORT
+		"<br><br>"
+		"<b>%s</b>, Copyright 2001-2023 Xiph.Org, Skype Limited, Octasic, Jean-Marc Valin, Timothy B. Terriberry, CSIRO, Gregory Maxwell, Mark Borgerding, Erik de Castro Lopo, Mozilla, Amazon<br>"
+		"<a href=\"https://opus-codec.org\"><b>https://opus-codec.org</b></a>"
+#endif
+#ifdef FLAC_SUPPORT
+		"<br><br>"
+		"<b>%s</b>, Copyright (C) 2000-2009 Josh Coalson, Copyright (C) 2011-2024 Xiph.Org Foundation<br>"
+		"<a href=\"https://xiph.org/flac\"><b>https://xiph.org/flac</b></a>"
+#endif
 #endif
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		, $("FM selector and manager for dark engine games and Thief 3.")
 #else
 		, $("FM selector and manager for dark engine games.")
 #endif
 		, DARK() ? "#376189" : "#719DC8"
-		, $("To enable support for MP3 to WAV conversion during FM install, you must download")
-		, $("and put it in the same directory as")
-		, $("Links for binary downloads of the LAME MP3 library can be found on:")
-#ifdef _WIN32
-		, $("Direct link to the recommended site on that list:")
-#else
-		, $("It is recommended to use your operating system's package manager to acquire compatible binaries if at all possible.")
-#endif
-		, DARK() ? "#376189" : "#719DC8"
 		, DARK() ? "#035493" : "#4C90D4"
 		, FL_MAJOR_VERSION, FL_MINOR_VERSION, FL_PATCH_VERSION
+#ifdef AUDIO_SUPPORT
+		, GetWavVersion()
+#ifdef MP3_SUPPORT
+		, GetMp3Version()
+#endif
 #ifdef OGG_SUPPORT
 		, GetOggVersion()
+#endif
+#ifdef OPUS_SUPPORT
+		, GetOpusVersion()
+#endif
+#ifdef FLAC_SUPPORT
+		, GetFlacVersion()
+#endif
 #endif
 		);
 
@@ -12288,7 +12073,7 @@ static void InitTagEdDialog(Fl_Window *pDlg, FMEntry *fm)
 		pTagEdNotes->deactivate();
 	}
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	if (g_bRunningThief3)
 		pTagEdModExclude->deactivate();
 #endif
@@ -12559,7 +12344,7 @@ static void PlayFM(BOOL bSetInProgress)
 	// if g_pFMSelData->sLanguage is set it means that "fm_language" was defined in a config file, if that's the case
 	// it's treated like a forced FM language setting (mainly to allow FM authors to have an easy way to force different
 	// languages without having to change dark's language setting), it's ignored if not supported by the FM
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	if (!g_bRunningThief3)
 	{
 #endif
@@ -12591,7 +12376,7 @@ static void PlayFM(BOOL bSetInProgress)
 			*g_pFMSelData->sLanguage = 0;
 		g_pFMSelData->bForceLanguage = FALSE;
 	}
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	}
 #endif
 
@@ -12599,7 +12384,7 @@ static void PlayFM(BOOL bSetInProgress)
 
 	strcpy_safe(g_pFMSelData->sName, g_pFMSelData->nMaxNameLen, fm->name);
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	if ( !fm->modexclude.empty() && !g_bRunningThief3 )
 #else
 	if ( !fm->modexclude.empty() )
@@ -13367,7 +13152,7 @@ extern "C" int FMSELAPI SelectFM(sFMSelectorData *data)
 
 	g_bRunningEditor = (data->sGameVersion && *data->sGameVersion) && !strncmp(data->sGameVersion, "DromEd", 6);
 	g_bRunningShock = (data->sGameVersion && *data->sGameVersion) && strstr(data->sGameVersion, "Shock");
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 	g_bRunningThief3 = (data->sGameVersion && *data->sGameVersion) && !strncmp(data->sGameVersion, "Thief 3", 7);
 #endif
 
@@ -13438,7 +13223,6 @@ abort:
 
 		delete pMainWnd;
 
-		TermMP3();
 		TermArchiveSystem();
 		TermFLTK();
 		CleanupLocalization();
@@ -13446,7 +13230,6 @@ abort:
 		return g_appReturn;
 	}
 
-	TermMP3();
 	TermArchiveSystem();
 	TermFLTK();
 	TermLocalization();

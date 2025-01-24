@@ -1107,7 +1107,7 @@ bool GetUnpackedArchiveSize(const char *archive, unsigned __int64 &sz, unsigned 
 }
 
 int ListFilesInArchiveRoot(const char *archive, std::vector<std::string> &list, std::vector<time_t> *timestamps)
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 {
 	return ListFilesInArchivePruned(archive, 0, list, timestamps);
 }
@@ -1154,7 +1154,7 @@ int ListFilesInArchivePruned(const char *archive, unsigned int maxdepth, std::ve
 
 		itempath = pArchiveItem->GetFullPath();
 
-#ifdef SUPPORT_T3
+#ifdef T3_SUPPORT
 		// skip files not within maxdepth
 		size_t pos = itempath.find_first_of(L"/\\");
 		unsigned int depth = 0;

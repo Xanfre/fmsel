@@ -43,20 +43,41 @@ ifneq ($(USE_XDG),)
 	CPPFLAGS_CXX_ALL += -DUSE_XDG
 endif
 endif
+ifneq ($(AUDIO_SUPPORT),)
+	CPPFLAGS_CXX_ALL += -DAUDIO_SUPPORT
+endif
+ifneq ($(MP3_SUPPORT),)
+	CPPFLAGS_CXX_ALL += -DMP3_SUPPORT
+endif
 ifneq ($(OGG_SUPPORT),)
 	CPPFLAGS_CXX_ALL += -DOGG_SUPPORT
 endif
-ifneq ($(SUPPORT_T3),)
-	CPPFLAGS_CXX_ALL += -DSUPPORT_T3
+ifneq ($(OPUS_SUPPORT),)
+	CPPFLAGS_CXX_ALL += -DOPUS_SUPPORT
 endif
-ifneq ($(SUPPORT_GLML),)
-	CPPFLAGS_CXX_ALL += -DSUPPORT_GLML
+ifneq ($(FLAC_SUPPORT),)
+	CPPFLAGS_CXX_ALL += -DFLAC_SUPPORT
+endif
+ifneq ($(T3_SUPPORT),)
+	CPPFLAGS_CXX_ALL += -DT3_SUPPORT
+endif
+ifneq ($(GLML_SUPPORT),)
+	CPPFLAGS_CXX_ALL += -DGLML_SUPPORT
 endif
 
 LIBS = -lfltk -lfltk_images -l7zip
 
 ifneq ($(OGG_SUPPORT),)
-	LIBS += -lvorbisfile -lvorbis -logg
+	LIBS += -lvorbisfile -lvorbis
+endif
+ifneq ($(OPUS_SUPPORT),)
+	LIBS += -lopusfile -lopus
+endif
+ifneq ($(FLAC_SUPPORT),)
+	LIBS += -lFLAC
+endif
+ifneq ($(OGG_SUPPORT)$(OPUS_SUPPORT)$(FLAC_SUPPORT),)
+	LIBS += -logg
 endif
 ifeq ($(TARGET_OS),Windows_NT)
 	LIBS += -lfltk_jpeg
@@ -85,7 +106,6 @@ FMSEL_OBJS = $(objdir)/archive.o \
 			$(objdir)/Fl_Html_View.o \
 			$(objdir)/fmsel.o \
 			$(objdir)/lang.o \
-			$(objdir)/mp3.o \
 			$(objdir)/os.o
 FLTK_OBJS = $(objdir)/Fl_Table.o \
 			$(objdir)/Fl_Table_Row.o
@@ -105,9 +125,12 @@ else
 ZLIB_OBJS =
 endif
 
-ifneq ($(SUPPORT_T3),)
+ifneq ($(AUDIO_SUPPORT),)
+	FMSEL_OBJS += $(objdir)/mp3.o
+endif
+ifneq ($(T3_SUPPORT),)
 	FMSEL_OBJS += $(objdir)/glml.o
-else ifneq ($(SUPPORT_GLML),)
+else ifneq ($(GLML_SUPPORT),)
 	FMSEL_OBJS += $(objdir)/glml.o
 endif
 

@@ -17,62 +17,22 @@
 
 #include <stdio.h>
 
-#ifdef _WIN32
-#define MP3LIB "libmp3lame.dll"
-#else
-#define MP3LIB "libmp3lame.so.0"
+const char* GetWavVersion();
+#ifdef MP3_SUPPORT
+bool ConvertMp3File(const char *name, const char *wavname);
+const char* GetMp3Version();
 #endif
-
-
-#pragma pack(4)
-
-typedef struct sMp3data
-{
-	int header_parsed;
-	int channels;
-	int sample_rate;
-	int bit_rate;
-	int mode;
-	int mode_ext;
-	int frame_size;
-	unsigned long nsamp;
-	int total_frames;
-	int frame_num;
-} sMp3data;
-
-#pragma pack()
-
-
-#ifdef _WIN32
-#undef CDECL
-#define CDECL __cdecl
-#else
-#define CDECL
-#endif
-
-typedef void *hip_t;
-
-// DLL function pointers resolved by InitMP3
-extern hip_t (CDECL *lame_decode_init)(void);
-extern int (CDECL *lame_decode_exit)(hip_t gfp);
-extern int (CDECL *lame_decode1_headersB)(hip_t gfp, unsigned char *mp3buf, int len, short pcm_l[], short pcm_r[], sMp3data* mp3data, int *enc_delay, int *enc_padding);
-
-// lame_decode1_headers wrapper
-inline int lame_decode1_headers(hip_t gfp, unsigned char *mp3buf, int len, short pcm_l[], short pcm_r[], sMp3data* mp3data)
-{
-	int foo1, foo2;
-	return lame_decode1_headersB(gfp, mp3buf, len, pcm_l, pcm_r, mp3data, &foo1, &foo2);
-}
-
-bool InitMP3();
-void TermMP3();
-bool InitMp3File(FILE *f);
-bool InitWavFile(FILE *f);
-bool FinalizeWavFile(FILE *f, int nSampleRate, int nChannels);
-
 #ifdef OGG_SUPPORT
-bool ConvertOggFile(FILE *f, FILE *fwav);
+bool ConvertOggFile(const char *name, const char *wavname);
 const char* GetOggVersion();
+#endif
+#ifdef OPUS_SUPPORT
+bool ConvertOpusFile(const char *name, const char *wavname);
+const char* GetOpusVersion();
+#endif
+#ifdef FLAC_SUPPORT
+bool ConvertFlacFile(const char *name, const char *wavname);
+const char* GetFlacVersion();
 #endif
 
 #endif // _MP3_H_

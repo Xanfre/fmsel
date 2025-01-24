@@ -10,8 +10,6 @@
  * FMSel.
  */
 
-#if defined(SUPPORT_T3) || defined(SUPPORT_GLML)
-
 #include "glml.h"
 #include <fstream>
 #include <algorithm>
@@ -111,5 +109,3 @@ string GlmlGetTitle(const string &file)
 
 	return file.substr(title_start, title_end - title_start);
 }
-
-#endif // defined(SUPPORT_T3) || defined(SUPPORT_GLML)
