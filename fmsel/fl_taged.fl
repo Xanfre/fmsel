@@ -5,7 +5,7 @@ i18n_include
 i18n_function $
 header_name {.h}
 code_name {.cpp.h}
-Function {MakeTagEditor(int scale)} {open selected private
+Function {MakeTagEditor()} {open selected private
 } {
   Fl_Window pTagEdWnd {
     label FMSel open

@@ -5,7 +5,7 @@ i18n_include
 i18n_function $
 header_name {.h}
 code_name {.cpp.h}
-Function {MakeDarkConfigWindow(int scale)} {open private
+Function {MakeDarkConfigWindow()} {open private
 } {
   Fl_Window pDarkCfgWnd {
     label {Game Options} open

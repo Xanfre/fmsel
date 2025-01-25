@@ -12,6 +12,7 @@
 
 #include "lang.h"
 #include "os.h"
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #ifdef _WIN32

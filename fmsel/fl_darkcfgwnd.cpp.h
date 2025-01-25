@@ -10,20 +10,20 @@ static Fl_Browser *pOptionList=(Fl_Browser *)0;
 
 static Fl_Text_Display *pConfigInfo=(Fl_Text_Display *)0;
 
-static Fl_Double_Window* MakeDarkConfigWindow(int scale) {
-  { pDarkCfgWnd = new Fl_Double_Window(SCALE(615), SCALE(405), $("Game Options"));
-    { pCategoryList = new Fl_Browser(SCALE(2), SCALE(5), SCALE(128), SCALE(367));
+static Fl_Double_Window* MakeDarkConfigWindow() {
+  { pDarkCfgWnd = new Fl_Double_Window(615, 405, ("Game Options"));
+    { pCategoryList = new Fl_Browser(2, 5, 128, 367);
       pCategoryList->type(1);
       pCategoryList->textfont(1);
     } // Fl_Browser* pCategoryList
-    { pOptionList = new Fl_Browser(SCALE(135), SCALE(5), SCALE(480), SCALE(255));
+    { pOptionList = new Fl_Browser(135, 5, 480, 255);
       pOptionList->type(1);
     } // Fl_Browser* pOptionList
-    { pConfigInfo = new Fl_Text_Display(SCALE(135), SCALE(265), SCALE(480), SCALE(106));
+    { pConfigInfo = new Fl_Text_Display(135, 265, 480, 106);
     } // Fl_Text_Display* pConfigInfo
-    { new Fl_Button(SCALE(520), SCALE(380), SCALE(95), SCALE(25), $("OK"));
+    { new Fl_Button(520, 380, 95, 25, ("OK"));
     } // Fl_Button* o
-    { new Fl_Button(SCALE(405), SCALE(380), SCALE(95), SCALE(25), $("Cancel"));
+    { new Fl_Button(405, 380, 95, 25, ("Cancel"));
     } // Fl_Button* o
     pDarkCfgWnd->set_modal();
     pDarkCfgWnd->end();

@@ -7,6 +7,8 @@ LICDIR = $(PREFIX)/share/licenses/libfmsel
 INCDIR = $(PREFIX)/include
 
 TARGET ?=
+TARGET_OS ?= $(OS)
+
 ifeq ($(TARGET),)
 CC ?= gcc
 CXX ?= g++
@@ -15,20 +17,22 @@ CC = $(TARGET)-gcc
 CXX = $(TARGET)-g++
 endif
 
-TARGET_OS ?= $(OS)
-
 CFLAGS_ALL = -O2 $(CFLAGS)
 CXXFLAGS_ALL = -O2 $(CXXFLAGS)
-CPPFLAGS_C_ALL = -std=c99 -Wall -Wextra -Wno-unused $(CPPFLAGS)
-CPPFLAGS_CXX_ALL = -std=c++11 $(L7ZIP_INC) -Wall -Wextra -Wno-cast-function-type -Wno-format-security -Wno-unused $(CPPFLAGS)
-LDFLAGS_ALL = $(L7ZIP_LIB) $(LDFLAGS)
+CPPFLAGS_C_ALL = -std=c99 -Wall -Wextra -Wno-unused -Wno-unused-result $(CPPFLAGS)
+CPPFLAGS_CXX_ALL = -std=c++11 $(L7ZIP_INC) -Wall -Wextra -Wno-cast-function-type -Wno-format-security -Wno-unused -Wno-unused-result $(CPPFLAGS)
+
+ifeq ($(STATIC),)
+	LDFLAGS_FLTK = $(shell fltk-config --use-images --ldflags)
+else
+	LDFLAGS_FLTK = $(shell fltk-config --use-images --ldstaticflags)
+endif
+
+LDFLAGS_ALL = $(L7ZIP_LIB) $(LDFLAGS_FLTK) $(LDFLAGS)
 
 ifeq ($(TARGET_OS),Windows_NT)
 	CPPFLAGS_C_ALL += -DNO_VIZ
 	CPPFLAGS_CXX_ALL += -I../zlibcomp
-ifneq ($(STATIC),)
-	CPPFLAGS_CXX_ALL += -DSTATIC
-endif
 else
 	CFLAGS_ALL += -fPIC
 	CXXFLAGS_ALL += -fPIC
@@ -65,7 +69,11 @@ ifneq ($(GLML_SUPPORT),)
 	CPPFLAGS_CXX_ALL += -DGLML_SUPPORT
 endif
 
-LIBS = -lfltk -lfltk_images -l7zip
+ifneq ($(STATIC),)
+	CPPFLAGS_CXX_ALL += -DSTATIC
+endif
+
+LIBS = -l7zip
 
 ifneq ($(OGG_SUPPORT),)
 	LIBS += -lvorbisfile -lvorbis
@@ -80,16 +88,10 @@ ifneq ($(OGG_SUPPORT)$(OPUS_SUPPORT)$(FLAC_SUPPORT),)
 	LIBS += -logg
 endif
 ifeq ($(TARGET_OS),Windows_NT)
-	LIBS += -lfltk_jpeg
-ifeq ($(STATIC),)
-	LIBS += -loleaut32 -luuid -lcomdlg32 -lgdi32
-else
-	LIBS += -loleaut32 -lole32 -luuid -lcomctl32 -lcomdlg32 -lgdi32 -static
-endif
 	BINEXT = .exe
 	SONAME ?= fmsel.dll
 else
-	LIBS += -lminizip -lX11
+	LIBS += -lminizip
 	SONAME ?= libfmsel.so
 	LDFLAGS_ALL += -Wl,-soname,$(SONAME)
 endif
@@ -206,7 +208,7 @@ $(objdir)/zip.o: ../zlibcomp/zlib.h ../zlibcomp/zconf.h ../zlibcomp/zip.h ../zli
 $(objdir)/zutil.o: ../zlibcomp/zutil.h ../zlibcomp/zlib.h ../zlibcomp/zconf.h
 
 $(SONAME): $(FMSEL_OBJS) $(FLTK_OBJS) $(ZLIB_OBJS)
-	$(CXX) $(CXXFLAGS_ALL) -shared $(LDFLAGS_ALL) $^ -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS_ALL) -shared $^ -o $@ $(LDFLAGS_ALL) $(LIBS)
 
 fmsel$(BINEXT): $(TOOL_OBJS) $(SONAME)
 	$(CC) $(CFLAGS_ALL) $(LDFLAGS) -L. $(TOOL_OBJS) -o $@ $(TOOL_LIBS)
