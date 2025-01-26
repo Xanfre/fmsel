@@ -76,6 +76,7 @@
 #include "Fl_Html_View.H"
 #include "Fl_Table/Fl_Table_Row.H"
 #include <FL/fl_draw.H>
+#include <FL/Fl_Scheme.H>
 #undef min
 #undef max
 #include "dbgutil.h"
@@ -267,7 +268,7 @@ static string FromUTF(const string &s)
 #define FromUTF(_x) _x
 #endif
 
-#define DARK() g_cfg.uitheme == 1
+#define DARK() g_cfg.bDarkColors
 
 
 enum
@@ -569,6 +570,8 @@ static const char *g_DateFmt[DATEFMT_NUM_FORMATS] =
 	"%d %b %Y",
 };
 
+#define MAX_WIDGET_SCHEMES 8
+
 
 struct FMSelConfig
 {
@@ -602,6 +605,7 @@ struct FMSelConfig
 	int returnAfterGame[2];
 
 	int uitheme;
+	BOOL bDarkColors;
 	BOOL bLargeFont;
 
 	// do differential backups (ie. backup all files that have been added or modified instead of only savegames and shots)
@@ -682,6 +686,7 @@ public:
 		returnAfterGame[0] = RET_NEVER;
 		returnAfterGame[1] = RET_NEVER;
 		uitheme = 0;
+		bDarkColors = FALSE;
 		bLargeFont = FALSE;
 		bDiffBackups = FALSE;
 		bReviewDiffBackup = FALSE;
@@ -969,6 +974,7 @@ public:
 				fprintf(f, "FilterTags%s=%s\n", FilterOpNames[i], str.c_str());
 			}
 		if (uitheme) fprintf(f, "Theme=%d\n", uitheme);
+		if (bDarkColors) fprintf(f, "DarkColors=%d\n", bDarkColors);
 		if (bLargeFont) fprintf(f, "FontSize=%d\n", bLargeFont);
 		if (bDiffBackups) fprintf(f, "BackupType=%d\n", !!bDiffBackups);
 		if (bReviewDiffBackup) fprintf(f, "ReviewDiffBackup=%d\n", bReviewDiffBackup);
@@ -1118,6 +1124,8 @@ public:
 		}
 		else if ( !_stricmp(valname, "Theme") )
 			uitheme = atoi(val);
+		else if ( !_stricmp(valname, "DarkColors") )
+			bDarkColors = !!atoi(val);
 		else if ( !_stricmp(valname, "FontSize") )
 			bLargeFont = !!atoi(val);
 		else if ( !_stricmp(valname, "BackupType") )
@@ -6810,10 +6818,9 @@ public:
 			CMD_TagRowsLast = CMD_TagRows0+4,
 			CMD_ToggleVarSizeRows,
 
-			CMD_ThemeGtk,
-			CMD_ThemeGtkDark,
-			CMD_ThemePlastic,
-			CMD_ThemeBasic,
+			CMD_WidgetScheme0,
+			CMD_WidgetSchemeLast = CMD_WidgetScheme0+MAX_WIDGET_SCHEMES-1,
+			CMD_ColorScheme,
 
 			CMD_FontSizeNormal,
 			CMD_FontSizeLarge,
@@ -6885,10 +6892,10 @@ public:
 				MENU_DATEFMT(i);
 			MENU_END();
 		MENU_SUB($("UI Theme"));
-			MENU_RITEM($("Default"), CMD_ThemeGtk, g_cfg.uitheme == 0);
-			MENU_RITEM($("Dark"), CMD_ThemeGtkDark, g_cfg.uitheme == 1);
-			MENU_RITEM($("Plastic"), CMD_ThemePlastic, g_cfg.uitheme == 2);
-			MENU_RITEM($("Basic"), CMD_ThemeBasic, g_cfg.uitheme == 3);
+			for (i=0; i<Fl_Scheme::num_schemes() && i<MAX_WIDGET_SCHEMES; i++)
+				MENU_RITEM(Fl_Scheme::names()[i], CMD_WidgetScheme0+i, g_cfg.uitheme == i);
+			MENU_MOD_DIV();
+			MENU_TITEM($("Dark Colors"), CMD_ColorScheme, g_cfg.bDarkColors);
 			MENU_END();
 		MENU_SUB($("UI Font Size"));
 			MENU_RITEM($("Normal"), CMD_FontSizeNormal, g_cfg.bLargeFont == 0);
@@ -6968,20 +6975,10 @@ public:
 			RefreshListControlRowSize();
 			break;
 
-		case CMD_ThemeGtk:
-		case CMD_ThemeGtkDark:
-		case CMD_ThemePlastic:
-		case CMD_ThemeBasic:
-			if ((g_cfg.uitheme == 1 && cmd_id-CMD_ThemeGtk != 1) || (g_cfg.uitheme != 1 && cmd_id-CMD_ThemeGtk == 1))
-				SwapColorScheme();
-			g_cfg.uitheme = cmd_id-CMD_ThemeGtk;
+		case CMD_ColorScheme:
+			g_cfg.bDarkColors = !g_cfg.bDarkColors;
 			g_cfg.OnModified();
-			if (g_cfg.uitheme == 2)
-				Fl::scheme("plastic");
-			else if (g_cfg.uitheme <= 1)
-				Fl::scheme("gtk+");
-			else
-				Fl::scheme("base");
+			SwapColorScheme();
 			pMainWnd->redraw();
 			break;
 
@@ -7099,6 +7096,13 @@ public:
 				g_cfg.tagrows = cmd_id-CMD_TagRows0;
 				g_cfg.OnModified();
 				RefreshListControlRowSize();
+			}
+			else if (cmd_id >= CMD_WidgetScheme0 && cmd_id <= CMD_WidgetSchemeLast)
+			{
+				g_cfg.uitheme = cmd_id-CMD_WidgetScheme0;
+				g_cfg.OnModified();
+				if (g_cfg.uitheme >= 0 && g_cfg.uitheme < Fl_Scheme::num_schemes())
+					Fl::scheme(Fl_Scheme::names()[g_cfg.uitheme]);
 			}
 		}
 	}
@@ -12929,15 +12933,10 @@ static void InitFLTK()
 
 	RegDefColors();
 
-	if (g_cfg.uitheme == 2)
-		Fl::scheme("plastic");
-	else if (g_cfg.uitheme <= 1)
-	{
-		if (g_cfg.uitheme == 1) SwapColorScheme();
-		Fl::scheme("gtk+");
-	}
-	else
-		Fl::scheme("base");
+	if (g_cfg.bDarkColors)
+		SwapColorScheme();
+	if (g_cfg.uitheme >= 0 && g_cfg.uitheme < Fl_Scheme::num_schemes())
+		Fl::scheme(Fl_Scheme::names()[g_cfg.uitheme]);
 
 	FL_NORMAL_SIZE = g_cfg.bLargeFont ? 14 : 12;
 	fl_message_font(FL_HELVETICA, FL_NORMAL_SIZE);
