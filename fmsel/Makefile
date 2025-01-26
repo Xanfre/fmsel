@@ -69,10 +69,6 @@ ifneq ($(GLML_SUPPORT),)
 	CPPFLAGS_CXX_ALL += -DGLML_SUPPORT
 endif
 
-ifneq ($(STATIC),)
-	CPPFLAGS_CXX_ALL += -DSTATIC
-endif
-
 LIBS = -l7zip
 
 ifneq ($(OGG_SUPPORT),)
@@ -97,12 +93,6 @@ else
 endif
 
 TOOL_LIBS = -l:$(SONAME)
-
-ifeq ($(TARGET_OS),Windows_NT)
-ifneq ($(STATIC),)
-	TOOL_LIBS += -static
-endif
-endif
 
 FMSEL_OBJS = $(objdir)/archive.o \
 			$(objdir)/Fl_Html_View.o \

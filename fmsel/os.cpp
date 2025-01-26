@@ -293,11 +293,7 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 	char cwd[MAX_PATH];
 	_getcwd(cwd, sizeof(cwd));
 
-#ifdef CUSTOM_FLTK
-	fl_filename_absolute_ex(result, len, initial_, TRUE);
-#else
 	fl_filename_absolute(result, len, initial_);
-#endif
 
 	char *s = result;
 	for (; *s; s++)
@@ -398,6 +394,9 @@ retry:
 		struct stat st = {};
 		if (stat(s, &st) || (st.st_mode & S_IFDIR))
 		{
+			Fl_Window *w = Fl::first_window();
+			if (w)
+				fl_message_position(w);
 			fl_alert($("%s\nFile not found.\nCheck the filename and try again."), s);
 			strcpy_s(initial_, sizeof(initial_), s);
 			goto retry;

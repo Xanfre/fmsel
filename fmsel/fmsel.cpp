@@ -95,7 +95,7 @@
 #include <algorithm>
 using std::vector;
 using std::string;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && _MSC_VER <= 1500
 using std::tr1::unordered_map;
 using std::tr1::hash;
 using std::tr1::unordered_multimap;
@@ -178,17 +178,6 @@ static inline int isdirsep(char c) {return c=='/' || c=='\\';}
 #endif
 
 #define isspace_(_ch) isspace((unsigned char)(_ch))
-
-#ifdef CUSTOM_FLTK
-#define NO_COMP_UTFCONV NULL,TRUE
-#define ALIGN_NO_DRAW (Fl_Align)(FL_ALIGN_TOP_LEFT|FL_ALIGN_CLIP|FL_ALIGN_WRAP),0
-#define insert_position position
-#else
-#define NO_COMP_UTFCONV NULL
-#define ALIGN_NO_DRAW 0
-#define fl_filename_absolute_ex(a, b, c, d) fl_filename_absolute(a, b, c)
-#define fl_filename_isdir_ex(a, b) fl_filename_isdir(a)
-#endif
 
 static int tolower_utf(const char *str, int len, char *buf)
 {
@@ -2099,7 +2088,7 @@ static void ScanArchiveRepo(const char *subdirname = NULL, int depth = 0)
 	}
 
 	dirent **files;
-	int nFiles = fl_filename_list(subdirname ? sdir.c_str() : g_cfg.archiveRepo.c_str(), &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(subdirname ? sdir.c_str() : g_cfg.archiveRepo.c_str(), &files, NULL);
 	if (nFiles <= 0)
 		return;
 
@@ -2205,7 +2194,7 @@ static void ScanFmDir()
 	// scan for installed FMs
 
 	dirent **files;
-	int nFiles = fl_filename_list(g_pFMSelData->sRootPath, &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(g_pFMSelData->sRootPath, &files, NULL);
 	if (nFiles > 0)
 	{
 		for (int i=0; i<nFiles; i++)
@@ -3509,12 +3498,12 @@ static void RegDefColors()
 #undef REGCLR
 }
 
-static void ChangeScheme()
+static void SwapColorScheme()
 {
 	// swap the necessary parts of the color map
-	unsigned int color, c, i = 0;
-#define SWPCLR(_x,_y) color = Fl::get_color((Fl_Color)_x); Fl::set_color((Fl_Color)_x,dark_cmap[_y]); dark_cmap[_y++] = color;
-	for (c = FL_FOREGROUND_COLOR; c < FL_FOREGROUND_COLOR+16; c++) { SWPCLR(c,i); } // 3-bit colormap
+	unsigned c, i = 0;
+#define SWPCLR(_x,_y) { unsigned int color = Fl::get_color((Fl_Color)_x); Fl::set_color((Fl_Color)_x,dark_cmap[_y]); dark_cmap[_y++] = color; }
+	for (c = FL_FOREGROUND_COLOR; c < FL_FOREGROUND_COLOR+16; c++) SWPCLR(c,i); // 3-bit colormap
 	for (c = FL_GRAY0; c <= FL_BLACK; c++) { SWPCLR(c,i); } // grayscale ramp and FL_BLACK
 	SWPCLR(FL_RED,i); // FL_RED
 	for (c = USER_CLR; c < USER_CLR+30; c++) { SWPCLR(c,i); } // custom colors
@@ -3667,6 +3656,7 @@ static BOOL FmGetPhysicalFileFromArchive(FMEntry *fm, const char *filename, stri
 
 	if ( !ExtractFileFromArchive(fm->GetArchiveFilePath().c_str(), filename, t.c_str(), &pErrMsg) )
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to extract \"%s\" to \"%s\".\n\nError: %s"), filename, t.c_str(), pErrMsg ? pErrMsg : "unknown error");
 		return FALSE;
 	}
@@ -3742,6 +3732,7 @@ static BOOL ExportFmIni(FMEntry *fm, BOOL bSaveTitle = FALSE)
 	{
 		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "fm.ini", g_pFMSelData->sRootPath, fm->name) == -1)
 		{
+			fl_message_position(pMainWnd);
 			fl_alert($("Failed to open file \"%s\" for writing, path name too long."), fname);
 			return FALSE;
 		}
@@ -3763,6 +3754,7 @@ static BOOL ExportFmIni(FMEntry *fm, BOOL bSaveTitle = FALSE)
 	FILE *f = fopen(fname, "wb");
 	if (!f)
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to open file \"%s\" for writing."), fname);
 		return FALSE;
 	}
@@ -3791,6 +3783,7 @@ static BOOL ExportBatchFmIni()
 	FILE *f = fopen(fname, "wb");
 	if (!f)
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to open file \"%s\" for writing."), fname);
 		return FALSE;
 	}
@@ -3822,6 +3815,7 @@ static BOOL ExportBatchFmIni()
 	if (!count)
 	{
 		remove(fname);
+		fl_message_position(pMainWnd);
 		fl_message($("The current list contained no archived FMs to export a batched fm.ini for"));
 	}
 
@@ -3981,6 +3975,7 @@ static BOOL ImportBatchFmIni()
 	FILE *f = fopen(fname, "rb");
 	if (!f)
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to open file \"%s\"."), fname);
 		return FALSE;
 	}
@@ -4094,6 +4089,8 @@ new_block:
 	}
 
 	fclose(f);
+
+	fl_message_position(pMainWnd);
 
 	if (count)
 	{
@@ -4430,7 +4427,7 @@ static BOOL ScanReleaseDate(FMEntry *fm, time_t tmMin, time_t tmMax, BOOL bSkipF
 		int nFiles = ListFilesInDirPruned(fname, 1, files);
 #else
 		dirent **files;
-		int nFiles = fl_filename_list(fname, &files, NO_COMP_UTFCONV);
+		int nFiles = fl_filename_list(fname, &files, NULL);
 #endif
 		if (nFiles <= 0)
 			return FALSE;
@@ -4794,7 +4791,7 @@ static BOOL GetDocFiles(FMEntry *fm, vector<string> &list)
 	int nFiles = ListFilesInDirPruned(fname, 1, files);
 #else
 	dirent **files;
-	int nFiles = fl_filename_list(fname, &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(fname, &files, NULL);
 #endif
 	if (nFiles <= 0)
 		return FALSE;
@@ -4901,7 +4898,7 @@ static BOOL DelTreeInternal(const char *path)
 		return FALSE;
 
 	dirent **files;
-	int nFiles = fl_filename_list(path, &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(path, &files, NULL);
 	if (nFiles <= 0)
 	{
 		if ( !_rmdir(path) )
@@ -4941,7 +4938,7 @@ static BOOL DelTreeInternal(const char *path)
 
 			s = path;
 			s.append(DIRSEP);
-			s.append(f->d_name);
+			s.append(FromUTF(f->d_name));
 
 			if (s.length() > MAX_PATH || remove_forced( s.c_str() ))
 			{
@@ -5080,7 +5077,7 @@ static BOOL BackupOptDirToArchive(FMEntry *fm, const char *dirname)
 	s.append(dirname);
 
 	dirent **files;
-	int nFiles = fl_filename_list(s.c_str(), &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(s.c_str(), &files, NULL);
 	if (nFiles <= 0)
 		return TRUE;
 
@@ -5115,7 +5112,7 @@ static BOOL BackupOptDirToArchive(FMEntry *fm, const char *dirname)
 
 				s = dirname;
 				s.append(DIRSEP);
-				s.append(f->d_name);
+				s.append(FromUTF(f->d_name));
 
 				if ( !BackupOptFileToArchive(fm, s.c_str(), TRUE) )
 					bRet = FALSE;
@@ -5182,7 +5179,7 @@ static BOOL BackupSavesToArchive(FMEntry *fm)
 	if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 		goto abort;
 	dirent **files;
-	int nFiles = fl_filename_list(fname, &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(fname, &files, NULL);
 	if (nFiles > 0)
 	{
 		BOOL bFailed = FALSE;
@@ -5599,8 +5596,12 @@ static BOOL ConvertAudioFiles(std::list<std::pair<string,int>> &audiofiles, cons
 		bRes = RunProgress();
 
 	if (!bRes)
+	{
+		fl_message_position(pMainWnd);
+
 		if ( !fl_choice($("Audio conversion failed partially or completely, proceed anyway?"), fl_cancel, fl_ok, NULL) )
 			return FALSE;
+	}
 
 	return TRUE;
 }
@@ -5622,6 +5623,8 @@ static BOOL rename_instdir_safe(const char *src, const char *dst)
 				if ( rename(src, dst) )
 				{
 retry:
+					fl_message_position(pMainWnd);
+
 					// notify user and allow one user-invoked retry
 					const int ret = fl_choice(
 						$("Failed to move the FM directory from the temp extraction location to the FM path:\n"
@@ -5693,7 +5696,7 @@ static void CheckMissionFlags(const char *installdir)
 	vector<int> misnums;
 
 	dirent **files;
-	int nFiles = fl_filename_list(installdir, &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(installdir, &files, NULL);
 	for (int i=0; i<nFiles; i++)
 	{
 		dirent *f = files[i];
@@ -5719,7 +5722,7 @@ static void CheckMissionFlags(const char *installdir)
 	{
 		BOOL bMissFlagsExist = FALSE;
 
-		nFiles = fl_filename_list(fpath, &files, NO_COMP_UTFCONV);
+		nFiles = fl_filename_list(fpath, &files, NULL);
 		for (int i=0; i<nFiles; i++)
 		{
 			dirent *f = files[i];
@@ -5735,7 +5738,7 @@ static void CheckMissionFlags(const char *installdir)
 					break;
 
 				dirent **sfiles;
-				int nSfiles = fl_filename_list(sfpath, &sfiles, NO_COMP_UTFCONV);
+				int nSfiles = fl_filename_list(sfpath, &sfiles, NULL);
 				for (int j=0; j<nSfiles; j++)
 				{
 					f = sfiles[j];
@@ -5763,12 +5766,14 @@ static void CheckMissionFlags(const char *installdir)
 	}
 	else if (_snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s" DIRSEP "strings", installdir) == -1 || _mkdir(fpath))
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to create \"strings\" directory for mission flags."));
 		return;
 	}
 
 	if (strlen(fpath)+14 > MAX_PATH_BUF)
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to generate mission flags, path too long."));
 		return;
 	}
@@ -5779,6 +5784,7 @@ static void CheckMissionFlags(const char *installdir)
 	FILE *f = fopen(fpath, "wb");
 	if (!f)
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to open file \"%s\" for writing."), fpath);
 		return;
 	}
@@ -5808,12 +5814,14 @@ static BOOL InstallFM(FMEntry *fm)
 	if ( g_sTempDir.empty() )
 	{
 		// shouldn't get here
+		fl_message_position(pMainWnd);
 		fl_alert($("No temp/cache directory available, cannot install."));
 		return FALSE;
 	}
 
 	if ( !IsSafeFmDir(fm) )
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("FM directory name \"%s\" is invalid, cannot install."), fm->name);
 		return FALSE;
 	}
@@ -5825,6 +5833,7 @@ static BOOL InstallFM(FMEntry *fm)
 	struct stat st = {};
 	if (stat(archivepath.c_str(), &st) || !(st.st_mode & S_IREAD))
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to find archive file \"%s\"."), archivepath.c_str());
 		return FALSE;
 	}
@@ -5832,6 +5841,7 @@ static BOOL InstallFM(FMEntry *fm)
 	char installdir[MAX_PATH_BUF];
 	if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Cannot install, path too long \"%s\"."), installdir);
 		return FALSE;
 	}
@@ -5840,6 +5850,7 @@ static BOOL InstallFM(FMEntry *fm)
 	// end up in this install function, then something is very screwy)
 	if ( !stat(installdir, &st) )
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Cannot install, there already is a directory \"%s\"."), installdir);
 		return FALSE;
 	}
@@ -5909,6 +5920,8 @@ static BOOL InstallFM(FMEntry *fm)
 	//       needs to check for MP3 files there too, and differential backups need to make sure files don't belong to
 	//       the language pack, ick!)
 
+	fl_message_position(pMainWnd);
+
 	if (bDiskOk && szOk && disk < ((sz+szBak)/MB) + MIN_FREE_MB)
 	{
 		// low diskspace warning
@@ -5937,11 +5950,14 @@ static BOOL InstallFM(FMEntry *fm)
 
 	const char *pErrMsg = NULL;
 
+	fl_message_position(pMainWnd);
+
 	BOOL bRet = ExtractFullArchive(archivepath.c_str(), tmpdir.c_str(), bShowProgress ? $("Installing...") : NULL, &pErrMsg);
 	if (!bRet)
 	{
 		DelTree( tmpdir.c_str() );
 
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to extract FM archive, install aborted.\n\nError: %s"), pErrMsg ? pErrMsg : $("unknown error"));
 
 		return FALSE;
@@ -5987,6 +6003,8 @@ static BOOL InstallFM(FMEntry *fm)
 
 		if (ExtractFullArchive(bakarchive.c_str(), tmpdir.c_str(), bShowBakProgress ? $("Restoring backup...") : NULL, &pErrMsg) != 1)
 		{
+			fl_message_position(pMainWnd);
+
 			// extraction failed completely or partially
 			if ( fl_choice(
 				$("Failed to restore backed up file (savegames, screenshots and possibly more).\n"
@@ -6021,6 +6039,7 @@ static BOOL InstallFM(FMEntry *fm)
 	else
 	{
 		DelTree( tmpdir.c_str() );
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to move install dir to final location, install aborted."));
 		return FALSE;
 	}
@@ -6038,7 +6057,7 @@ static BOOL EnumFileDiffInfo(const char *path, int relname_start)
 		return FALSE;
 
 	dirent **files;
-	int nFiles = fl_filename_list(path, &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(path, &files, NULL);
 	if (nFiles <= 0)
 		return TRUE;
 
@@ -6074,7 +6093,7 @@ static BOOL EnumFileDiffInfo(const char *path, int relname_start)
 
 			s = path;
 			s.append(DIRSEP);
-			s.append(f->d_name);
+			s.append(FromUTF(f->d_name));
 
 			if (s.length() > MAX_PATH || !GetFileSizeAndMTimeOS(s.c_str(), info.fsize, info.ftime))
 			{
@@ -6174,6 +6193,8 @@ static bool ClearDiffInfoFileEntry(const char *fname)
 
 static BOOL UninstallFM(FMEntry *fm)
 {
+	fl_message_position(pMainWnd);
+
 	if ( g_sTempDir.empty() )
 	{
 		// shouldn't get here
@@ -6206,6 +6227,8 @@ static BOOL UninstallFM(FMEntry *fm)
 
 		const char *msg = $("All files in the install dir will be deleted, any modified/added/removed files are backed up.\nProceed with uninstall?");
 
+		fl_message_position(pMainWnd);
+
 		if ( !fl_choice(msg, fl_cancel, fl_ok, NULL) )
 			return FALSE;
 
@@ -6214,6 +6237,7 @@ static BOOL UninstallFM(FMEntry *fm)
 		char installdir[MAX_PATH_BUF];
 		if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s" DIRSEP "%s", g_pFMSelData->sRootPath, fm->name) == -1)
 		{
+			fl_message_position(pMainWnd);
 			fl_alert($("Path too long, uninstall aborted."));
 			return FALSE;
 		}
@@ -6228,6 +6252,7 @@ static BOOL UninstallFM(FMEntry *fm)
 		// enumerate all files in the install dir with mtime and size into
 		if ( !EnumFileDiffInfo(installdir, strlen(installdir)) )
 		{
+			fl_message_position(pMainWnd);
 			fl_alert($("Failed to scan files to make backup, uninstall aborted."));
 			bRet = FALSE;
 		}
@@ -6237,6 +6262,7 @@ static BOOL UninstallFM(FMEntry *fm)
 			const char *pErrMsg = NULL;
 			if ( !EnumFullArchiveEx(fm->GetArchiveFilePath().c_str(), ClearIdenticalEnumeratedArchiveFile, installdir, &pErrMsg) )
 			{
+				fl_message_position(pMainWnd);
 				fl_alert($("Failed to determine changed files for backup, uninstall aborted\n\nArchive Error: %s"), pErrMsg ? pErrMsg : "unknown error");
 				bRet = FALSE;
 			}
@@ -6255,6 +6281,7 @@ static BOOL UninstallFM(FMEntry *fm)
 				// backup all files remaining in g_fileDiffInfoMap
 				if ( !BackupDiffSet(fm) )
 				{
+					fl_message_position(pMainWnd);
 					fl_alert($("Failed to backup changed files, uninstall aborted."));
 
 					bRet = FALSE;
@@ -6264,9 +6291,12 @@ static BOOL UninstallFM(FMEntry *fm)
 					bRet = FmDelTree(fm);
 
 					if (!bRet)
+					{
+						fl_message_position(pMainWnd);
 						fl_alert(bBackupSaves
 							? $("Failed to delete install directory, uninstall aborted (backup archive was still created/updated).")
 							: $("Failed to delete install directory, uninstall aborted."));
+					}
 				}
 			}
 		}
@@ -6281,6 +6311,8 @@ static BOOL UninstallFM(FMEntry *fm)
 		const char *msg = bBackupSaves
 			? $("All files in the install dir will be deleted, any modified/added files,\nexcept savegames and screenshots, will be lost.\nProceed with uninstall?")
 			: $("All files in the install dir will be deleted, any modified/added files,\nsavegames and screenshots will be lost!\nProceed with uninstall?");
+
+		fl_message_position(pMainWnd);
 
 		if ( !fl_choice(msg, fl_cancel, fl_ok, NULL) )
 			return FALSE;
@@ -6486,7 +6518,7 @@ static void ScanDirForLanguage(const char *subdirname, LangEnumContext &ctxt, in
 	string sdir;
 
 	dirent **files;
-	int nFiles = fl_filename_list(subdirname, &files, NO_COMP_UTFCONV);
+	int nFiles = fl_filename_list(subdirname, &files, NULL);
 	if (nFiles <= 0)
 		return;
 
@@ -6654,10 +6686,7 @@ static BOOL IsLanguageInList(std::list<string> &langlist, const char *lang)
 // FM_Return_Button (hides return icon when disabled)
 //
 
-#if defined(CUSTOM_FLTK) || defined(STATIC)
-extern int fl_return_arrow(int x, int y, int w, int h);
-#else
-int fl_return_arrow(int x, int y, int w, int h) {
+static int fl_return_arrow(int x, int y, int w, int h) {
 	int size = w; if (h<size) size = h;
 	int d = (size+2)/4; if (d<3) d = 3;
 	int t = (size+9)/12; if (t<1) t = 1;
@@ -6674,7 +6703,6 @@ int fl_return_arrow(int x, int y, int w, int h) {
 	fl_xyline(x1+1, y0-t, x1+d, y0-d, x1+d+2*t);
 	return 1;
 }
-#endif
 
 class Fl_FM_Return_Button : public Fl_Return_Button
 {
@@ -6945,7 +6973,7 @@ public:
 		case CMD_ThemePlastic:
 		case CMD_ThemeBasic:
 			if ((g_cfg.uitheme == 1 && cmd_id-CMD_ThemeGtk != 1) || (g_cfg.uitheme != 1 && cmd_id-CMD_ThemeGtk == 1))
-				ChangeScheme();
+				SwapColorScheme();
 			g_cfg.uitheme = cmd_id-CMD_ThemeGtk;
 			g_cfg.OnModified();
 			if (g_cfg.uitheme == 2)
@@ -6959,6 +6987,7 @@ public:
 
 		case CMD_FontSizeNormal:
 		case CMD_FontSizeLarge:
+			fl_message_position(pMainWnd);
 			if ( fl_choice($("Restart is required to change font size. Change size and exit?"), fl_cancel, fl_ok, NULL) )
 			{
 				g_cfg.bLargeFont = (cmd_id == CMD_FontSizeLarge);
@@ -7028,9 +7057,13 @@ public:
 
 		case CMD_SaveDb:
 			if ( !SaveDb() )
+			{
+				fl_message_position(pMainWnd);
 				fl_alert($("Failed to save \"fmsel.ini\"."));
+			}
 			break;
 		case CMD_CleanDb:
+			fl_message_position(pMainWnd);
 			if ( fl_choice($("Are you sure you want to clean all\nobsolete entries from the database?"), fl_no, fl_yes, NULL) )
 				CleanDb();
 			break;
@@ -7968,7 +8001,7 @@ public:
 				else
 				{
 					int lw = WW, lh = 0;
-					fl_measure(fm->tagsUI.c_str(), lw, lh, ALIGN_NO_DRAW);
+					fl_measure(fm->tagsUI.c_str(), lw, lh, 0);
 
 					const int bottomhalf2 = lh + 2;
 					row_height(r, std::min(maxH, tophalf + bottomhalf2));
@@ -8004,7 +8037,7 @@ public:
 				fl_font(FL_HELVETICA, m_tagfontsize);
 
 				int lw = WW, lh = 0;
-				fl_measure(fm->tagsUI.c_str(), lw, lh, ALIGN_NO_DRAW);
+				fl_measure(fm->tagsUI.c_str(), lw, lh, 0);
 
 				const int bottomhalf2 = lh + 2;
 				row_height(r, std::min(maxH, tophalf + bottomhalf2));
@@ -8261,6 +8294,7 @@ public:
 			RedrawListControl(TRUE);
 			break;
 		case CMD_Completed:
+			fl_message_position(pMainWnd);
 			if ( fl_choice($("Completed \"%s\"?"), fl_no, fl_yes, NULL, fm->GetFriendlyName()) )
 			{
 				fm->OnCompleted();
@@ -8274,6 +8308,7 @@ public:
 			break;
 
 		case CMD_Delete:
+			fl_message_position(pMainWnd);
 			if ( fl_choice($("Are you sure you want to delete \"%s\" from the database?"), fl_no, fl_yes, NULL, fm->GetFriendlyName()) )
 				DeleteFM(fm);
 			break;
@@ -8292,12 +8327,16 @@ public:
 				if ( !FmFileExists(fm, fm->infofile.c_str()) )
 					if ( !AutoSelectInfoFile(fm) )
 					{
+						fl_message_position(pMainWnd);
 						fl_alert($("Couldn't find any info file."));
 						break;
 					}
 
 				if ( !FmOpenFileWithAssociatedApp(fm, fm->infofile.c_str()) )
+				{
+					fl_message_position(pMainWnd);
 					fl_alert($("Failed to view info file \"%s\"."), fm->infofile.c_str());
+				}
 			}
 			break;
 
@@ -9992,7 +10031,10 @@ protected:
 				ASSERT( !str.empty() );
 				const char *filename = str.c_str();
 				if ( !FmOpenFileWithAssociatedApp(fm, filename) )
+				{
+					fl_message_position(pMainWnd);
 					fl_alert($("Failed to view file \"%s\"."), filename);
+				}
 			}
 			return NULL;
 		}
@@ -10870,12 +10912,12 @@ static BOOL IsArchivePathSameAsFmPath(const char *archpath)
 	char fmpath[MAX_PATH_BUF];
 	char absarchpath[MAX_PATH_BUF];
 
-	fl_filename_absolute_ex(absarchpath, sizeof(absarchpath), archpath, TRUE);
+	fl_filename_absolute(absarchpath, sizeof(absarchpath), archpath);
 	CleanDirSlashes(absarchpath);
 	string sArchPath = absarchpath;
 	TrimTrailingSlashFromPath(sArchPath);
 
-	fl_filename_absolute_ex(fmpath, sizeof(fmpath), g_pFMSelData->sRootPath, TRUE);
+	fl_filename_absolute(fmpath, sizeof(fmpath), g_pFMSelData->sRootPath);
 	CleanDirSlashes(fmpath);
 	string sFmPath = fmpath;
 	TrimTrailingSlashFromPath(sFmPath);
@@ -10940,6 +10982,7 @@ retry:
 
 	if ( str.empty() )
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("The root dir is not a valid archive path."));
 		return;
 	}
@@ -10947,12 +10990,15 @@ retry:
 	// make sure the archive path isn't the FM path
 	if ( IsArchivePathSameAsFmPath( str.c_str() ) )
 	{
+		fl_message_position(pMainWnd);
 		fl_alert($("The archive path may not be inside the FM path, or vice versa."));
 		goto retry;
 	}
 
 	if (g_cfg.archiveRepo.empty() || g_cfg.archiveRepo != str)
 	{
+		fl_message_position(pMainWnd);
+
 		if (g_cfg.bRepoOK && !fl_choice($("You will lose access to all archives in the current path.\nAre you sure you want to change archive path?"), fl_cancel, fl_ok, NULL))
 			return;
 
@@ -10966,6 +11012,7 @@ retry:
 
 		if (!bStartupConfig)
 		{
+			fl_message_position(pMainWnd);
 			fl_message($("Changing the archive path requires a restart. FMSel will now exit."));
 
 			OnExit(NULL, NULL);
@@ -11125,7 +11172,10 @@ static int DoImportBatchFmIniDialog()
 				w->hide();
 			}
 			else
+			{
+				fl_message_position(pMainWnd);
 				fl_alert($("No data selected for import."));
+			}
 		}
 		else if (o == typecheck[TAGS_IND])
 		{
@@ -11162,6 +11212,8 @@ static int DoImportBatchFmIniDialog()
 		return 0;
 
 	//
+
+	fl_message_position(pMainWnd);
 
 	if (mode & IMP_ModeOverwrite)
 	{
@@ -11516,7 +11568,10 @@ static void OnTagEdViewInfoFile(Fl_Button *, void *)
 	const char *filename = g_mnuInfoFiles[ pTagEdInfoFile->value() ].label();
 
 	if ( !FmOpenFileWithAssociatedApp(fm, filename) )
+	{
+		fl_message_position(pMainWnd);
 		fl_alert($("Failed to view file \"%s\"."), filename);
+	}
 }
 
 static BOOL TagEditorHasChanges(int *pValidationFailedOnPage = NULL)
@@ -11542,6 +11597,7 @@ static BOOL TagEditorHasChanges(int *pValidationFailedOnPage = NULL)
 			if (pValidationFailedOnPage)
 			{
 				*pValidationFailedOnPage = TABPAGE_MISC;
+				fl_message_position(pMainWnd);
 				fl_alert($("Incomplete release date specified."));
 			}
 			return 2;
@@ -11557,6 +11613,7 @@ invalid_date:
 			if (pValidationFailedOnPage)
 			{
 				*pValidationFailedOnPage = TABPAGE_MISC;
+				fl_message_position(pMainWnd);
 				fl_alert($("Invalid release date specified."));
 			}
 			return 2;
@@ -11603,6 +11660,7 @@ invalid_date:
 		if (pValidationFailedOnPage)
 		{
 			*pValidationFailedOnPage = TABPAGE_DESCR;
+			fl_message_position(pMainWnd);
 			fl_alert($("Description is %d long, max length is %d."), g_pDescrBuffer->length(), MAX_DESCR_LEN);
 			return 2;
 		}
@@ -11665,6 +11723,8 @@ static void CloseTagEditor()
 
 static void OnCancelTagEditor(Fl_Button *, void *)
 {
+	fl_message_position(pMainWnd);
+
 	if (TagEditorHasChanges() && !fl_choice($("Discard changes?"), fl_cancel, fl_ok, NULL) )
 		return;
 
@@ -11678,6 +11738,7 @@ static void OnOkTagEditor(Fl_Button *, void *)
 	if (val && *val)
 	{
 		string s = Trimmed(val);
+		fl_message_position(pMainWnd);
 		if (!s.empty() && !fl_choice($("The Add Tag input field contains \"%s\" that wasn't added as a tag.\nDiscard?"), fl_cancel, fl_ok, NULL, s.c_str()) )
 		{
 			pTagEdTabs->value( pTagEdTabs->child(TABPAGE_TAGS) );
@@ -12284,6 +12345,7 @@ static void PlayFM(BOOL bSetInProgress)
 
 	if (!fm)
 	{
+		fl_message_position(pMainWnd);
 		fl_message($("No FM selected."));
 		return;
 	}
@@ -12412,6 +12474,7 @@ static void ShowBadDirWarning()
 		s.append("\n...");
 	}
 
+	fl_message_position(pMainWnd);
 	fl_alert( s.c_str() );
 
 	g_invalidDirs.clear();
@@ -12425,6 +12488,8 @@ static BOOL ValidateFmPath()
 
 	if (!stat(g_pFMSelData->sRootPath, &st) && (st.st_mode & S_IFDIR))
 		return TRUE;
+
+	fl_message_position(pMainWnd);
 
 	if ( !fl_choice($("The FM path \"%s\" was not found or a valid directory.\nCreate the directory?"), $("Exit"), fl_yes, NULL, g_pFMSelData->sRootPath) )
 		return FALSE;
@@ -12441,6 +12506,8 @@ static BOOL ValidateArchiveRepo(BOOL bFirstRun)
 {
 	if ( g_cfg.archiveRepo.empty() )
 	{
+		fl_message_position(pMainWnd);
+
 		// on first run ask if user wants to configure a repo path
 		if (bFirstRun && fl_choice(
 			$("Would you like to configure an FM archive path now?\n\n"
@@ -12463,6 +12530,8 @@ static BOOL ValidateArchiveRepo(BOOL bFirstRun)
 	// make sure that archive path is found
 
 	struct stat st = {};
+
+	fl_message_position(pMainWnd);
 
 	if (!stat(g_cfg.archiveRepo.c_str(), &st) && (st.st_mode & S_IFDIR))
 	{
@@ -12591,10 +12660,10 @@ static void InitTempCache()
 	// could put it in the system temp dir, but for now we use the fmdir (for portable apps compliance)
 	const char *tmp = g_pFMSelData->sRootPath;
 	/*const char *tmp = getenv("TMP");
-	if (!tmp || !fl_filename_isdir_ex(tmp, TRUE))
+	if (!tmp || !fl_filename_isdir(tmp))
 	{
 		tmp = getenv("TEMP");
-		if (!tmp || !fl_filename_isdir_ex(tmp, TRUE))
+		if (!tmp || !fl_filename_isdir(tmp))
 		{
 			TRACE("Failed to create temp dir, no valid TMP/TEMP environment var");
 			return;
@@ -12606,11 +12675,11 @@ static void InitTempCache()
 		g_sTempDir += DIRSEP;
 
 	g_sTempDir += ".fmsel.cache" DIRSEP;
-	if ( fl_filename_isdir_ex(g_sTempDir.c_str(), TRUE) )
+	if ( fl_filename_isdir(g_sTempDir.c_str()) )
 	{
 		// dir already existed, delete contents
 		dirent **files;
-		int nFiles = fl_filename_list(g_sTempDir.c_str(), &files, NO_COMP_UTFCONV);
+		int nFiles = fl_filename_list(g_sTempDir.c_str(), &files, NULL);
 		if (nFiles > 0)
 		{
 			string s;
@@ -12640,7 +12709,7 @@ static void InitTempCache()
 				}
 				else
 				{
-					s = g_sTempDir + f->d_name;
+					s = g_sTempDir + FromUTF(f->d_name);
 					if ( !remove_forced( s.c_str() ) )
 					{
 						TRACE("deleted temp dir file: %s", s.c_str());
@@ -12674,13 +12743,13 @@ static void InitTempCache()
 	{
 		// generate absolute path for temp dir
 		char fullpath[MAX_PATH_BUF];
-		fl_filename_absolute_ex(fullpath, sizeof(fullpath), g_sTempDir.c_str(), TRUE);
+		fl_filename_absolute(fullpath, sizeof(fullpath), g_sTempDir.c_str());
 #ifdef _WIN32
 		for (char *s=fullpath; *s; s++)
 			if (*s == '/')
 				*s = '\\';
 #endif
-		g_sTempDirAbs = fullpath;
+		g_sTempDirAbs = FromUTF(fullpath);
 	}
 }
 
@@ -12695,6 +12764,7 @@ void ValidateTempCache()
 	if ( !g_sTempDir.empty() )
 		return;
 
+	fl_message_position(pMainWnd);
 	fl_alert(
 		$("Failed to create the temp/cache directory \"%s%s.fmsel.cache\".\n"
 		"Some functionality like uninstalling FMs will not be available"),
@@ -12703,31 +12773,6 @@ void ValidateTempCache()
 
 
 extern int FL_NORMAL_SIZE;
-#ifdef CUSTOM_FLTK
-extern Fl_Callback *fl_message_preshow_cb_;
-
-static void OnPrepareFlMessageBox(Fl_Window *w, void*)
-{
-	Fl_Window *parent = Fl::modal();
-	if (!parent)
-		parent = pMainWnd;
-
-	const int cx = parent->x() + (parent->w()/2);
-	const int cy = parent->y() + (parent->h()/2);
-
-	int x = cx - (w->w()/2);
-	int y = cy - (w->h()/2);
-
-	// neutralize offset caused by mouse in hotspot() (we still use hotspot() so we don't have to deal with the
-	// preventing the window from being off-screen junk)
-	int mx,my;
-	Fl::get_mouse(mx,my);
-	x -= mx;
-	y -= my;
-
-	w->hotspot(-x, -y);
-}
-#endif
 
 static void fl_imagetext_label(const Fl_Label* o, int X, int Y, int W, int H, Fl_Align align)
 {
@@ -12878,11 +12923,6 @@ static void InitFLTK()
 	}
 #endif
 
-#ifdef CUSTOM_FLTK
-	// set custom pre-show callback for fl message boxes so that we can center them to the dialog instead of mouse
-	fl_message_preshow_cb_ = (Fl_Callback*)OnPrepareFlMessageBox;
-#endif
-
 	Fl::visual(FL_RGB);
 
 	fl_register_jpeg();
@@ -12893,7 +12933,7 @@ static void InitFLTK()
 		Fl::scheme("plastic");
 	else if (g_cfg.uitheme <= 1)
 	{
-		if (g_cfg.uitheme == 1) ChangeScheme();
+		if (g_cfg.uitheme == 1) SwapColorScheme();
 		Fl::scheme("gtk+");
 	}
 	else
@@ -13156,6 +13196,7 @@ extern "C" int FMSELAPI SelectFM(sFMSelectorData *data)
 
 		if ( !SaveDb() )
 		{
+			fl_message_position(pMainWnd);
 			fl_alert($("Failed to save database (fmsel.ini). Make sure you have write access\n"
 				"to the file and FM path and that there's enough free disk space\n"
 				"before closing this dialog, otherwise any changes will be lost."));
