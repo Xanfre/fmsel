@@ -11422,6 +11422,9 @@ static vector<string> g_infoFiles;
 
 static Fl_Text_Buffer *g_pNotesBuffer = NULL;
 static Fl_Text_Buffer *g_pDescrBuffer = NULL;
+static Fl_Text_Buffer *g_pConfigBuffer = NULL;
+
+static BOOL g_bTagEdFMConfigModified = FALSE;
 
 
 int Fl_FM_TagEd_Window::handle(int e)
@@ -11578,6 +11581,11 @@ static void OnTagEdViewInfoFile(Fl_Button *, void *)
 	}
 }
 
+static void OnModifyFMConfig(int, int nInserted, int nDeleted, int, const char *, void *cbArg)
+{
+	if (cbArg && (nInserted > 0 || nDeleted > 0)) *(BOOL*)cbArg = TRUE;
+}
+
 static BOOL TagEditorHasChanges(int *pValidationFailedOnPage = NULL)
 {
 	if (g_bTagEdFakeFMForcedHasChanges)
@@ -11709,6 +11717,10 @@ invalid_date:
 	if (fm->descr != notes)
 		return TRUE;
 
+	// config
+	if (g_bTagEdFMConfigModified)
+		return TRUE;
+
 	return FALSE;
 }
 
@@ -11838,6 +11850,18 @@ static void OnOkTagEditor(Fl_Button *, void *)
 	if (s)
 		free(s);
 	fm->SetNotes( notes.c_str() );
+
+	//
+	// TABPAGE_CONFIG
+	//
+
+	if  (fm->IsInstalled())
+	{
+		char fname[MAX_PATH_BUF];
+		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "fm.cfg", g_pFMSelData->sRootPath, fm->name) != -1)
+			g_pConfigBuffer->savefile(fname);
+	}
+	g_bTagEdFMConfigModified = FALSE;
 
 	//
 
@@ -12082,6 +12106,25 @@ static void InitTagEdDialog(Fl_Window *pDlg, FMEntry *fm)
 	}
 
 	//
+	// TABPAGE_CONFIG
+	//
+
+	pTagEdConfig->box(FLAT_MARGIN_BOX);
+	pTagEdConfig->wrap_mode(1, 0);
+
+	pTagEdConfig->buffer(g_pConfigBuffer);
+	if  (fm->IsInstalled())
+	{
+		char fname[MAX_PATH_BUF];
+		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP "%s" DIRSEP "fm.cfg", g_pFMSelData->sRootPath, fm->name) != -1)
+		{
+			g_pConfigBuffer->loadfile(fname);
+			g_pConfigBuffer->add_modify_callback(OnModifyFMConfig, &g_bTagEdFMConfigModified);
+		}
+	}
+	g_bTagEdFMConfigModified = FALSE;
+
+	//
 
 	// disable all controls that aren't relevant for standalone FM.INI creation
 	if (g_bTagEdFakeFM)
@@ -12090,12 +12133,17 @@ static void InitTagEdDialog(Fl_Window *pDlg, FMEntry *fm)
 		pTagEdUnverified->deactivate();
 		pTagEdModExclude->deactivate();
 		pTagEdNotes->deactivate();
+		pTagEdConfig->deactivate();
 	}
-
 #ifdef T3_SUPPORT
-	if (g_bRunningThief3)
+	else if (g_bRunningThief3)
+	{
 		pTagEdModExclude->deactivate();
+		pTagEdConfig->deactivate();
+	}
 #endif
+	else if (!fm->IsInstalled())
+		pTagEdConfig->deactivate();
 }
 
 static void DoTagEditor(FMEntry *fm, int page)
@@ -12112,6 +12160,7 @@ static void DoTagEditor(FMEntry *fm, int page)
 
 	g_pNotesBuffer = new Fl_Text_Buffer;
 	g_pDescrBuffer = new Fl_Text_Buffer;
+	g_pConfigBuffer = new Fl_Text_Buffer;
 
 	InitTagEdDialog(pDlg, fm);
 
@@ -12145,6 +12194,11 @@ static void DoTagEditor(FMEntry *fm, int page)
 	{
 		delete g_pDescrBuffer;
 		g_pDescrBuffer = NULL;
+	}
+	if (g_pConfigBuffer)
+	{
+		delete g_pConfigBuffer;
+		g_pConfigBuffer = NULL;
 	}
 
 	if (g_mnuInfoFiles)
