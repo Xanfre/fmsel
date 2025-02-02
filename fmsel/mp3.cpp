@@ -39,6 +39,7 @@
 #pragma pack()
 
 #include <FL/fl_ask.H>
+#include <FL/fl_utf8.h>
 
 
 #define BUF_SIZE 128*1024
@@ -100,12 +101,20 @@ bool ConvertMp3File(const char *name, const char *wavname)
 	*/
 
 	drmp3 dec;
+#ifdef _WIN32
+	if (DRMP3_TRUE != drmp3_init_file_w(&dec, WidenStrOS(name), NULL))
+#else
 	if (DRMP3_TRUE != drmp3_init_file(&dec, name, NULL))
+#endif
 		return false;
 
 	drwav wav;
 	drwav_data_format fmt = { drwav_container_riff, DR_WAVE_FORMAT_PCM, (drwav_uint32)dec.channels, (drwav_uint32)dec.sampleRate, 16 };
+#ifdef _WIN32
+	if (DRWAV_TRUE != drwav_init_file_write_w(&wav, WidenStrOS(wavname).c_str(), &fmt, NULL))
+#else
 	if (DRWAV_TRUE != drwav_init_file_write(&wav, wavname, &fmt, NULL))
+#endif
 	{
 		drmp3_uninit(&dec);
 		return false;
@@ -166,12 +175,20 @@ bool ConvertOggFile(const char *name, const char *wavname)
 
 	OggVorbis_File vf;
 
+#ifdef _WIN32
+	if (ov_fopen(DemoteStrOS(name).c_str(), &vf) < 0)
+#else
 	if (ov_fopen(name, &vf) < 0)
+#endif
 		return false;
 
 	drwav wav;
 	drwav_data_format fmt = { drwav_container_riff, DR_WAVE_FORMAT_PCM, (drwav_uint32)vf.vi->channels, (drwav_uint32)vf.vi->rate, 16 };
+#ifdef _WIN32
+	if (DRWAV_TRUE != drwav_init_file_write_w(&wav, WidenStrOS(wavname).c_str(), &fmt, NULL))
+#else
 	if (DRWAV_TRUE != drwav_init_file_write(&wav, wavname, &fmt, NULL))
+#endif
 	{
 		ov_clear(&vf);
 		return false;
@@ -228,13 +245,21 @@ bool ConvertOpusFile(const char *name, const char *wavname)
 	if (!name || !wavname)
 		return false;
 
+#ifdef _WIN32
+	OggOpusFile *of = op_open_file(DemoteStrOS(name).c_str(), NULL);
+#else
 	OggOpusFile *of = op_open_file(name, NULL);
+#endif
 	if (NULL == of)
 		return false;
 
 	drwav wav;
 	drwav_data_format fmt = { drwav_container_riff, DR_WAVE_FORMAT_PCM, (drwav_uint32)op_channel_count(of, 0), 48000, 16 };
+#ifdef _WIN32
+	if (DRWAV_TRUE != drwav_init_file_write_w(&wav, WidenStrOS(wavname).c_str(), &fmt, NULL))
+#else
 	if (DRWAV_TRUE != drwav_init_file_write(&wav, wavname, &fmt, NULL))
+#endif
 	{
 		op_free(of);
 		return false;
@@ -339,7 +364,7 @@ bool ConvertFlacFile(const char *name, const char *wavname)
 
 	char magic[4] = { 0 };
 	{
-		FILE *f = fopen(name, "rb");
+		FILE *f = fl_fopen(name, "rb");
 		if (!f)
 			return false;
 
@@ -355,12 +380,20 @@ bool ConvertFlacFile(const char *name, const char *wavname)
 
 	if (!strncmp(magic, "fLaC", 4))
 	{
+#ifdef _WIN32
+		if (!FLAC__metadata_chain_read(mc, DemoteStrOS(name).c_str()))
+#else
 		if (!FLAC__metadata_chain_read(mc, name))
+#endif
 			init = false;;
 	}
 	else if (FLAC_API_SUPPORTS_OGG_FLAC)
 	{
+#ifdef _WIN32
+		if (!FLAC__metadata_chain_read_ogg(mc, DemoteStrOS(name).c_str()))
+#else
 		if (!FLAC__metadata_chain_read_ogg(mc, name))
+#endif
 			init = false;
 	}
 	else
@@ -413,12 +446,20 @@ bool ConvertFlacFile(const char *name, const char *wavname)
 
 	if (!strncmp(magic, "fLaC", 4))
 	{
+#ifdef _WIN32
+		if (FLAC__STREAM_DECODER_INIT_STATUS_OK != FLAC__stream_decoder_init_file(dec, DemoteStrOS(name).c_str(), FlacWriteBuf, NULL, FlacError, &wav))
+#else
 		if (FLAC__STREAM_DECODER_INIT_STATUS_OK != FLAC__stream_decoder_init_file(dec, name, FlacWriteBuf, NULL, FlacError, &wav))
+#endif
 			init = false;
 	}
 	else if (FLAC_API_SUPPORTS_OGG_FLAC)
 	{
+#ifdef _WIN32
+		if (FLAC__STREAM_DECODER_INIT_STATUS_OK != FLAC__stream_decoder_init_ogg_file(dec, DemoteStrOS(name).c_str(), FlacWriteBuf, NULL, FlacError, &wav))
+#else
 		if (FLAC__STREAM_DECODER_INIT_STATUS_OK != FLAC__stream_decoder_init_ogg_file(dec, name, FlacWriteBuf, NULL, FlacError, &wav))
+#endif
 			init = false;
 	}
 	else
@@ -431,7 +472,11 @@ bool ConvertFlacFile(const char *name, const char *wavname)
 	}
 
 	drwav_data_format fmt = { drwav_container_riff, DR_WAVE_FORMAT_PCM, ch, sr, bps };
+#ifdef _WIN32
+	if (DRWAV_TRUE != drwav_init_file_write_w(&wav, WidenStrOS(wavname).c_str(), &fmt, NULL))
+#else
 	if (DRWAV_TRUE != drwav_init_file_write(&wav, wavname, &fmt, NULL))
+#endif
 	{
 		FLAC__stream_decoder_finish(dec);
 		FLAC__stream_decoder_delete(dec);

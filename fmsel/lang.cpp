@@ -33,7 +33,7 @@
 #include <unordered_map>
 #include <algorithm>
 using std::string;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && _MSC_VER <= 1500
 using std::tr1::unordered_map;
 #else
 using std::unordered_map;
@@ -235,7 +235,7 @@ void InitLocalization()
 	// generate filename with path and file title same as dll file
 
 	char fname[2048] = { 0, };
-	if ( !GetFmselModulePath(fname, sizeof(fname)) )
+	if ( !GetFmselModulePathOS(fname, sizeof(fname)) )
 		return;
 
 	char *ext = strrchr(fname, '.');
@@ -254,17 +254,11 @@ void InitLocalization()
 
 	// read file into buffer
 
-	FILE *f = fopen(fname, "rb");
+	FILE *f = fl_fopen(fname, "rb");
 	if (!f)
 		return;
 
-#ifdef _WIN32
-	int n = _filelength( _fileno(f) );
-#else
-	fseek(f, 0, SEEK_END);
-	int n = ftell(f);
-	fseek(f, 0, SEEK_SET);
-#endif
+	int n = GetFILESizeOS(f);
 	if (n <= 0)
 	{
 		fclose(f);

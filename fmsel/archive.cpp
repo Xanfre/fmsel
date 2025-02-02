@@ -19,6 +19,7 @@
 #include <lib7zip.h>
 #include <FL/fl_ask.H>
 #include <FL/filename.H>
+#include <FL/fl_utf8.h>
 #include <stdarg.h>
 #include <errno.h>
 #ifdef _WIN32
@@ -40,10 +41,6 @@
 #include <cstring>
 #define TRUE 1
 #define FALSE 0
-#define _stricmp strcasecmp
-#define _mkdir(a) mkdir(a,0755)
-#define _wcsicmp wcscasecmp
-#define _wcsnicmp wcsncasecmp
 #define MAX_PATH PATH_MAX
 #define max(a,b) (((a)>(b))?(a):(b))
 #endif
@@ -53,14 +50,6 @@
 
 // NOTE: lib7zip unfortunately doesn't have compression support, so we use a slimmed down zlib (only stuff needed to compress)
 
-
-#ifdef _WIN32
-#define DIRSEP "\\"
-#define DIRSEPW L"\\"
-#else
-#define DIRSEP "/"
-#define DIRSEPW L"/"
-#endif
 
 #ifndef _WIN32
 #define INVALID_HANDLE_VALUE NULL
@@ -82,9 +71,7 @@ int RunProgress();
 void StepProgress(int nSteps);
 void EndProgress(int result);
 
-static BOOL CreateAllSubDirsW(wchar_t *filepath, int subdir_start, int subdir_end);
-static std::string w2s(const wstring &wstr);
-static wstring s2w(const char *str);
+static BOOL CreateAllSubDirs(char *filepath, int subdir_start, int subdir_end);
 
 
 static C7ZipLibrary *g_p7zLib = NULL;
@@ -114,7 +101,7 @@ protected:
 	FILE *m_pFile;
 #endif
 	std::string m_strFileName;
-	wstring m_strFileExt;
+	std::string m_strFileExt;
 	int m_nFileSize;
 	time_t m_tmFiletime;
 
@@ -137,15 +124,15 @@ protected:
 public:
 	ArchiveInStream(const char *fileName)
 		: m_strFileName(fileName),
-		m_strFileExt(L"7z")
+		m_strFileExt("7z")
 	{
 #ifdef _WIN32
-		m_pFile = CreateFileA(fileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+		m_pFile = CreateFileW(WidenStrOS(fileName).c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 #else
 		if ( !GetFileMTimeOS(fileName, m_tmFiletime) )
 			m_tmFiletime = 0;
 
-		m_pFile = fopen(fileName, "rb");
+		m_pFile = fl_fopen(fileName, "rb");
 #endif
 		if (m_pFile != INVALID_HANDLE_VALUE)
 		{
@@ -154,20 +141,18 @@ public:
 			if ( !GetFileTime(m_pFile, NULL, NULL, (LPFILETIME)&m_tmFiletime) )
 				m_tmFiletime = 0;
 #else
-			fseek(m_pFile, 0, SEEK_END);
-			m_nFileSize = ftell(m_pFile);
-			fseek(m_pFile, 0, SEEK_SET);
+			m_nFileSize = GetFILESizeOS(m_pFile);
 #endif
 
-			const wstring::size_type pos = m_strFileName.find_last_of(".");
+			const std::string::size_type pos = m_strFileName.find_last_of(".");
 			if (pos != m_strFileName.npos)
 			{
 				const char *ext = m_strFileName.c_str() + pos + 1;
 
-				if ( !_stricmp(ext, "ss2mod") )
+				if ( !fl_utf_strcasecmp(ext, "ss2mod") )
 					ext = ProbeArchiveType();
 
-				m_strFileExt = s2w(ext);
+				m_strFileExt = ext;
 			}
 		}
 	}
@@ -184,7 +169,7 @@ public:
 
 	time_t GetMTime() const { return m_tmFiletime; }
 
-	virtual wstring GetExt() const { return m_strFileExt; }
+	virtual wstring GetExt() const { return WidenStrOS(m_strFileExt.c_str()); }
 
 	virtual int Read(void *data, unsigned int size, unsigned int *processedSize)
 	{
@@ -197,7 +182,10 @@ public:
 			return 1;
 #else
 		int count = fread(data, 1, size, m_pFile);
+		if (ferror(m_pFile))
+			return 1;
 #endif
+
 		if (processedSize != NULL)
 			*processedSize = count;
 
@@ -269,24 +257,9 @@ public:
 	FileOutStream(const char *fileName, C7ZipArchiveItem *pItem, time_t tmFiletimeFallback = 0)
 	{
 #ifdef _WIN32
-		m_pFile = CreateFileA(fileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+		m_pFile = CreateFileW(WidenStrOS(fileName).c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 #else
-		m_pFile = fopen(fileName, "wb");
-#endif
-		m_nFileSize = 0;
-		m_bWriteError = FALSE;
-		InitFileTime(pItem, tmFiletimeFallback);
-	}
-
-	FileOutStream(const wchar_t *fileName, C7ZipArchiveItem *pItem, time_t tmFiletimeFallback = 0)
-	{
-#ifdef _WIN32
-		m_pFile = CreateFileW(fileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-#elif defined(__unix__) || defined(__UNIX__)
-		wstring wFileName(fileName);
-		m_pFile = fopen(w2s(wFileName).c_str(), "wb");
-#else
-		m_pFile = _wfopen(fileName, L"wb");
+		m_pFile = fl_fopen(fileName, "wb");
 #endif
 		m_nFileSize = 0;
 		m_bWriteError = FALSE;
@@ -295,21 +268,18 @@ public:
 
 	// special constructor that creates all dirs in 'itempath' is necessary (param constellation optimized
 	// to minimize overhead when extracting full archives with thousands of files)
-	FileOutStream(const wstring &wdest, const wstring &itempath, wstring &tmp, C7ZipArchiveItem *pItem, time_t tmFiletimeFallback = 0)
+	FileOutStream(const std::string &dest, const std::string &itempath, std::string &tmp, C7ZipArchiveItem *pItem, time_t tmFiletimeFallback = 0)
 	{
 		// 'wdest' is slash-terminated
 
 		m_bWriteError = FALSE;
 
-		tmp = wdest + itempath;
+		tmp = dest + itempath;
 
 #ifdef _WIN32
 		m_pFile = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-#elif defined(__unix__) || defined(__UNIX__)
-		std::string stmp = w2s(tmp);
-		m_pFile = fopen(stmp.c_str(), "wb");
 #else
-		m_pFile = _wfopen(tmp.c_str(), L"wb");
+		m_pFile = fl_fopen(tmp.c_str(), "wb");
 #endif
 		m_nFileSize = 0;
 
@@ -320,15 +290,13 @@ public:
 #endif
 		{
 			// failed to open file due to non-existing path, create path and try again
-			const wstring::size_type pos = itempath.find_last_of(DIRSEPW);
+			const std::string::size_type pos = itempath.find_last_of(DIRSEP_STR);
 			if (pos != itempath.npos
-				&& CreateAllSubDirsW((wchar_t*)tmp.c_str(), wdest.length(), wdest.length()+pos))
+				&& CreateAllSubDirs((char*)tmp.c_str(), dest.length(), dest.length()+pos))
 #ifdef _WIN32
-				m_pFile = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-#elif defined(__unix__) || defined(__UNIX__)
-				m_pFile = fopen(stmp.c_str(), "wb");
+				m_pFile = CreateFileW(WidenStrOS(tmp.c_str()).c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 #else
-				m_pFile = _wfopen(tmp.c_str(), L"wb");
+				m_pFile = fl_fopen(tmp.c_str(), "wb");
 #endif
 		}
 
@@ -351,7 +319,6 @@ public:
 #else
 				fflush(m_pFile);
 
-#if defined(__unix__) || defined(__UNIX__)
 				struct timespec ts[2];
 				ts[0].tv_sec = m_tmFiletime;
 				ts[0].tv_nsec = 0;
@@ -359,13 +326,6 @@ public:
 				ts[1].tv_nsec = 0;
 
 				futimens(fileno(m_pFile), ts);
-#else
-				struct _utimbuf ut;
-				ut.actime = m_tmFiletime;
-				ut.modtime = m_tmFiletime;
-
-				_futime(_fileno(m_pFile), &ut);
-#endif
 #endif
 			}
 
@@ -390,6 +350,11 @@ public:
 		}
 #else
 		int count = fwrite(data, 1, size, m_pFile);
+		if (ferror(m_pFile))
+		{
+			m_bWriteError = TRUE;
+			return 1;
+		}
 #endif
 
 		if ((unsigned int)count < size)
@@ -489,15 +454,7 @@ public:
 	{
 		m_nFileSize = 0;
 	}
-	NullOutStream(const char *)
-	{
-		m_nFileSize = 0;
-	}
-	NullOutStream(const wchar_t *)
-	{
-		m_nFileSize = 0;
-	}
-	NullOutStream(const wstring &, const wstring &, wstring &)
+	NullOutStream(const std::string &, const std::string &, std::string &)
 	{
 		m_nFileSize = 0;
 	}
@@ -530,8 +487,8 @@ class FileOutStreamFactory : public C7ZipOutStreamFactory
 protected:
 	C7ZipArchive *m_pArchive;
 	BOOL m_bFailed;
-	const wstring &m_wdest;
-	wstring &m_tmp;
+	const std::string &m_dest;
+	std::string &m_tmp;
 
 	time_t m_tmFiletimeFallback;
 
@@ -540,10 +497,10 @@ protected:
 	BOOL m_bWriteError;
 
 public:
-	FileOutStreamFactory(C7ZipArchive *pArchive, const wstring &wdest, wstring &tmp, time_t arch_mtime)
+	FileOutStreamFactory(C7ZipArchive *pArchive, const std::string &dest, std::string &tmp, time_t arch_mtime)
 		: m_pArchive(pArchive),
 		m_bFailed(FALSE),
-		m_wdest(wdest),
+		m_dest(dest),
 		m_tmp(tmp),
 		m_tmFiletimeFallback(arch_mtime),
 		m_bWriteError(FALSE)
@@ -571,7 +528,7 @@ public:
 			return NULL;
 		}
 
-		FileOutStream *pFile = new FileOutStream(m_wdest, pItem->GetFullPath(), m_tmp, pItem, m_tmFiletimeFallback);
+		FileOutStream *pFile = new FileOutStream(m_dest, NarrowStrOS(pItem->GetFullPath().c_str()), m_tmp, pItem, m_tmFiletimeFallback);
 
 		if ( !pFile->IsValid() )
 		{
@@ -644,42 +601,6 @@ static void CloseArchive(C7ZipArchive *)
 
 //
 
-static std::string w2s(const wstring &wstr)
-{
-	char buf[2048];
-	buf[0] = 0;
-
-#ifdef _WIN32
-	// TODO: CP_UTF8 (or CP_OEMCP)?
-	int n = WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), wstr.length(), buf, sizeof(buf), NULL, NULL);
-	buf[n] = 0;
-#else
-	int n = wcstombs(buf, wstr.c_str(), sizeof(buf));
-	buf[max(0,n)] = 0;
-#endif
-
-	return buf;
-};
-
-static wstring s2w(const char *str)
-{
-	wchar_t buf[2048];
-	buf[0] = 0;
-
-#ifdef _WIN32
-	// TODO: CP_UTF8 (or CP_OEMCP)?
-	int n = MultiByteToWideChar(CP_ACP, 0, str, strlen(str), buf, sizeof(buf)/sizeof(buf[0]));
-	buf[n] = 0;
-#else
-	int n = mbstowcs(buf, str, strlen(str));
-	buf[max(0,n)] = 0;
-#endif
-
-	return buf;
-};
-
-//
-
 static C7ZipArchiveItem* FindArchiveItem(C7ZipArchive *pArchive, const char *fname)
 {
 	unsigned int nItems = 0;
@@ -689,9 +610,7 @@ static C7ZipArchiveItem* FindArchiveItem(C7ZipArchive *pArchive, const char *fna
 	if (!nItems)
 		return NULL;
 
-	wstring fnamew = s2w(fname);
-
-	wstring itempath;
+	std::string itempath;
 
 	for (unsigned int i=0; i<nItems; i++)
 	{
@@ -703,10 +622,10 @@ static C7ZipArchiveItem* FindArchiveItem(C7ZipArchive *pArchive, const char *fna
 		if (pArchiveItem->IsDir() || pArchiveItem->IsEncrypted())
 			continue;
 
-		itempath = pArchiveItem->GetFullPath();
+		itempath = NarrowStrOS(pArchiveItem->GetFullPath().c_str());
 
 		// NOTE: itempath is assumed to use OS specific dir separators, that's what GetFullPath() also returns
-		if ( !_wcsicmp(fnamew.c_str(), itempath.c_str()) )
+		if ( !fl_utf_strcasecmp(fname, itempath.c_str()) )
 			return pArchiveItem;
 	}
 
@@ -717,29 +636,24 @@ static C7ZipArchiveItem* FindArchiveItem(C7ZipArchive *pArchive, const char *fna
 
 // takes a full pathname to a file, subdir_start is the first character of the subdir portion of which
 // dirs should be created, subdir_end is the dir separator right before the filename starts
-static BOOL CreateAllSubDirsW(wchar_t *filepath, int subdir_start, int subdir_end)
+static BOOL CreateAllSubDirs(char *filepath, int subdir_start, int subdir_end)
 {
 	subdir_end++;
-	const wchar_t ch = filepath[subdir_end];
+	const char ch = filepath[subdir_end];
 	filepath[subdir_end] = 0;
 
-	wchar_t *sub = filepath + subdir_start;
+	char *sub = filepath + subdir_start;
 	int ok = 1;
 
 	for (;;)
 	{
-		wchar_t *s = wcschr(sub, *DIRSEPW);
+		char *s = strchr(sub, DIRSEP);
 		if (!s)
 			break;
 
 		*s = 0;
-#if defined(__unix__) || defined(__UNIX__)
-		wstring wfilepath(filepath);
-		ok = !mkdir(w2s(wfilepath).c_str(), 0755) || errno == EEXIST;
-#else
-		ok = !_wmkdir(filepath) || errno == EEXIST;
-#endif
-		*s = *DIRSEPW;
+		ok = !fl_mkdir(filepath, DEF_DIR_MODE) || errno == EEXIST;
+		*s = DIRSEP;
 
 		if (!ok)
 			break;
@@ -783,9 +697,9 @@ uLong filetime(const char *f, tm_zip *tmzip, uLong *dt)
   {
       FILETIME ftLocal;
       HANDLE hFind;
-      WIN32_FIND_DATAA  ff32;
+      WIN32_FIND_DATAW  ff32;
 
-      hFind = FindFirstFileA(f,&ff32);
+      hFind = FindFirstFileW(WidenStrOS(f).c_str(),&ff32);
       if (hFind != INVALID_HANDLE_VALUE)
       {
         FileTimeToLocalFileTime(&(ff32.ftLastWriteTime),&ftLocal);
@@ -841,9 +755,7 @@ uLong filetime(const char *f, tm_zip *tmzip, uLong *)
 struct ZipOutContext
 {
 	zipFile zf;
-#ifdef _WIN32
 	zlib_filefunc_def ffunc;
-#endif
 	std::string fname;
 
 	int num_files;
@@ -865,10 +777,10 @@ static bool BeginCreateZipFile(const char *zipfile)
 
 #ifdef _WIN32
 	fill_win32_filefunc(&g_pZipOutContext->ffunc);
-	g_pZipOutContext->zf = zipOpen2(zipfile, 0, NULL, &g_pZipOutContext->ffunc);
 #else
-	g_pZipOutContext->zf = zipOpen(zipfile, 0);
+	fill_fopen_filefunc(&g_pZipOutContext->ffunc);
 #endif
+	g_pZipOutContext->zf = zipOpen2(zipfile, 0, NULL, &g_pZipOutContext->ffunc);
 
 	if (!g_pZipOutContext->zf)
 	{
@@ -896,7 +808,7 @@ static bool EndCreateZipFile(bool bAbort)
 	if (errclose != ZIP_OK || bAbort)
 	{
 		// failed, delete faulty archive
-		remove( g_pZipOutContext->fname.c_str() );
+		fl_unlink( g_pZipOutContext->fname.c_str() );
 		delete g_pZipOutContext;
 		g_pZipOutContext = NULL;
 		return false;
@@ -904,7 +816,7 @@ static bool EndCreateZipFile(bool bAbort)
 
 	// if we produced an empty archive then remove the file
 	if (g_pZipOutContext->num_files == 0)
-		remove( g_pZipOutContext->fname.c_str() );
+		fl_unlink( g_pZipOutContext->fname.c_str() );
 
 	delete g_pZipOutContext;
 	g_pZipOutContext = NULL;
@@ -916,7 +828,7 @@ static bool AddFileToZip(const char *fname, const char *zipfname)
 {
 	ASSERT(g_pZipOutContext != NULL);
 
-	FILE *f = fopen(fname, "rb");
+	FILE *f = fl_fopen(fname, "rb");
 	if (!f)
 	{
 		ASSERT(FALSE);
@@ -928,8 +840,13 @@ static bool AddFileToZip(const char *fname, const char *zipfname)
 
 	filetime(fname, &zi.tmz_date, &zi.dosDate);
 
+#ifdef _WIN32
+	int err = zipOpenNewFileInZip3(g_pZipOutContext->zf, DemoteStrOS(zipfname).c_str(), &zi, NULL, 0, NULL, 0, NULL,
+									Z_DEFLATED, compress_level, 0, -MAX_WBITS, DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY, NULL, 0);
+#else
 	int err = zipOpenNewFileInZip3(g_pZipOutContext->zf, zipfname, &zi, NULL, 0, NULL, 0, NULL,
 									Z_DEFLATED, compress_level, 0, -MAX_WBITS, DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY, NULL, 0);
+#endif
 	if (err != ZIP_OK)
 	{
 		fclose(f);
@@ -1050,8 +967,8 @@ void TermArchiveSystem()
 bool IsArchiveFormatSupported(const char *ext)
 {
 	// TODO: could actually check which formats 7z enumerated
-	return !_stricmp(ext, "zip") || !_stricmp(ext, "7z") || !_stricmp(ext, "rar")
-		|| !_stricmp(ext, "ss2mod");
+	return !fl_utf_strcasecmp(ext, "zip") || !fl_utf_strcasecmp(ext, "7z") || !fl_utf_strcasecmp(ext, "rar")
+		|| !fl_utf_strcasecmp(ext, "ss2mod");
 }
 
 bool GetUnpackedArchiveSize(const char *archive, unsigned __int64 &sz, unsigned int &numfiles, bool nocache)
@@ -1140,7 +1057,7 @@ int ListFilesInArchivePruned(const char *archive, unsigned int maxdepth, std::ve
 	arch_ftime = (arch_ftime / (unsigned __int64)10000000) - (unsigned __int64)11644473600;
 #endif
 
-	wstring itempath;
+	std::string itempath;
 
 	for (unsigned int i=0; i<nItems; i++)
 	{
@@ -1152,30 +1069,25 @@ int ListFilesInArchivePruned(const char *archive, unsigned int maxdepth, std::ve
 		if (pArchiveItem->IsDir() || pArchiveItem->IsEncrypted())
 			continue;
 
-		itempath = pArchiveItem->GetFullPath();
+		itempath = NarrowStrOS(pArchiveItem->GetFullPath().c_str());
 
 #ifdef T3_SUPPORT
 		// skip files not within maxdepth
-		size_t pos = itempath.find_first_of(L"/\\");
+		size_t pos = itempath.find_first_of("/\\");
 		unsigned int depth = 0;
-		while (pos != wstring::npos) // assumes itempath has no trailing (back)slash
+		while (pos != std::string::npos) // assumes itempath has no trailing (back)slash
 		{
 			++depth;
-			pos = itempath.find_first_of(L"/\\", pos + 1);
+			pos = itempath.find_first_of("/\\", pos + 1);
 		}
 		if (depth > maxdepth)
 #else
 		// skip files not in root
-		if (itempath.find_first_of(L"/\\") != wstring::npos)
+		if (itempath.find_first_of("/\\") != std::string::npos)
 #endif
 			continue;
 
-		// convert filename from wstring to string
-		std::string s = w2s(itempath);
-		if ( !s.size() )
-			continue;
-
-		list.push_back(s);
+		list.push_back(itempath);
 
 		if (timestamps)
 		{
@@ -1350,7 +1262,7 @@ int ExtractFullArchive(const char *archive, const char *dest, const char *progre
 	}
 
 	// make sure the leaf dir exists
-	if (_mkdir(dest) && errno != EEXIST)
+	if (fl_mkdir(dest, DEF_DIR_MODE) && errno != EEXIST)
 	{
 		// dir doesn't exist and we couldn't create it
 		CloseArchive(pArchive);
@@ -1369,13 +1281,15 @@ int ExtractFullArchive(const char *archive, const char *dest, const char *progre
 		return 1;
 	}
 
-	wstring itempath;
-	wstring wdest = s2w(dest) + DIRSEPW;
-	wstring wstmp;
+	std::string itempath;
+	std::string sdest = dest;
+	std::string stmp;
+
+	sdest.append(DIRSEP_STR);
 
 	int ret;
 
-	FileOutStreamFactory factory(pArchive, wdest, wstmp, arch_ftime);
+	FileOutStreamFactory factory(pArchive, sdest, stmp, arch_ftime);
 
 	if (progress_label)
 	{
@@ -1445,7 +1359,7 @@ bool EnumFullArchive(const char *archive, bool (*pEnumCallback)(const char*,void
 		return true;
 	}
 
-	wstring itempath;
+	std::string itempath;
 
 	for (unsigned int i=0; i<nItems; i++)
 	{
@@ -1457,14 +1371,9 @@ bool EnumFullArchive(const char *archive, bool (*pEnumCallback)(const char*,void
 		if (pArchiveItem->IsDir() || pArchiveItem->IsEncrypted())
 			continue;
 
-		itempath = pArchiveItem->GetFullPath();
+		itempath = NarrowStrOS(pArchiveItem->GetFullPath().c_str());
 
-		// convert filename from wstring to string
-		std::string s = w2s(itempath);
-		if ( !s.size() )
-			continue;
-
-		if ( !(*pEnumCallback)(s.c_str(), pCallbackData) )
+		if ( !(*pEnumCallback)(itempath.c_str(), pCallbackData) )
 			break;
 	}
 
@@ -1506,7 +1415,7 @@ bool EnumFullArchiveEx(const char *archive, bool (*pEnumCallback)(const char*,un
 	arch_ftime = (arch_ftime / (unsigned __int64)10000000) - (unsigned __int64)11644473600;
 #endif
 
-	wstring itempath;
+	std::string itempath;
 
 	for (unsigned int i=0; i<nItems; i++)
 	{
@@ -1518,12 +1427,7 @@ bool EnumFullArchiveEx(const char *archive, bool (*pEnumCallback)(const char*,un
 		if (pArchiveItem->IsDir() || pArchiveItem->IsEncrypted())
 			continue;
 
-		itempath = pArchiveItem->GetFullPath();
-
-		// convert filename from wstring to string
-		std::string s = w2s(itempath);
-		if ( !s.size() )
-			continue;
+		itempath = NarrowStrOS(pArchiveItem->GetFullPath().c_str());
 
 		// get file unpacked size and mtime
 		unsigned __int64 val;
@@ -1539,7 +1443,7 @@ bool EnumFullArchiveEx(const char *archive, bool (*pEnumCallback)(const char*,un
 		if ( !pArchiveItem->GetUInt64Property(lib7zip::kpidSize, val) )
 			val = ~(unsigned __int64)0;
 
-		if ( !(*pEnumCallback)(s.c_str(), val, tm, pCallbackData) )
+		if ( !(*pEnumCallback)(itempath.c_str(), val, tm, pCallbackData) )
 			break;
 	}
 

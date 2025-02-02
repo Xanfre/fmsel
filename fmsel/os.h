@@ -16,6 +16,20 @@
 #define _OS_H_
 
 #include <time.h>
+#include <string>
+
+#define DEF_DIR_MODE 0755
+#ifdef _WIN32
+#define DIRSEP '\\'
+#define DIRSEP_STR "\\"
+#define DIRSEPW L'\\'
+#define DIRSEPW_STR L"\\"
+#else
+#define DIRSEP '/'
+#define DIRSEP_STR "/"
+#define DIRSEPW L'/'
+#define DIRSEPW_STR L"/"
+#endif
 
 
 class Fl_Window;
@@ -43,13 +57,19 @@ BOOL CreateThreadOS(void* (*f)(void*), void *p);
 BOOL GetFileMTimeOS(const char *fname, time_t &tm);
 BOOL GetFileSizeAndMTimeOS(const char *fname, unsigned __int64 &sz, time_t &tm);
 BOOL CloneFileMTimeOS(const char *srcfile, const char *dstfile);
+size_t GetFILESizeOS(FILE *f);
 
 void* LoadDynamicLibOS(const char *name);
 void CloseDynamicLibOS(void *handle);
 void* GetDynamicLibProcOS(void *handle, const char *procname);
 
-BOOL GetFmselModulePath(char *buf, int len);
+BOOL GetFmselModulePathOS(char *buf, int len);
 
-BOOL mkdir_parents(const char *dir);
+BOOL MkDirParentsOS(const char *dir);
+
+std::wstring WidenStrOS(const char *s);
+std::string NarrowStrOS(const wchar_t *s_w);
+std::string DemoteStrOS(const char *s);
+std::string PromoteStrOS(const char *s_mb);
 
 #endif // _OS_H_

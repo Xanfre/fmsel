@@ -51,10 +51,11 @@ string GlmlToHtml(const string &filename, const string &dirname)
 	// read the file into a string for conversion
 #ifdef _WIN32
 	string fl = dirname + "\\" + filename;
+	std::wifstream ifs(WidenStrOS(fl.c_str()).c_str());
 #else
 	string fl = dirname + "/" + filename;
-#endif
 	std::ifstream ifs(fl.c_str());
+#endif
 	string html((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
 
 	// first replace gl-tags which have a 1:1 html counterpart

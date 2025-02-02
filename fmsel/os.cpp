@@ -18,8 +18,6 @@
 #include <sys/statvfs.h>
 #define TRUE 1
 #define FALSE 0
-#define _utime utime
-#define _utimbuf utimbuf
 #define sprintf_s snprintf
 #define strcat_s(a,b,c) strncat(a,c,b-strlen(a)-1)
 #define strcpy_s(a,b,c) memset(a,0,b); strncpy(a,c,b-1);
@@ -38,8 +36,11 @@
 #include <utime.h>
 #include <dlfcn.h>
 #endif
+#include <string>
 #include <FL/Fl_File_Chooser.H>
+#include <FL/fl_utf8.h>
 #include "lang.h"
+#include "os.h"
 
 
 #ifdef _WIN32
@@ -192,7 +193,7 @@ extern char **environ;
 BOOL OpenFileWithAssociatedApp(const char *filename, const char *dirname)
 {
 #ifdef _WIN32
-	int res = (int) ShellExecuteA(NULL, "open", filename, NULL, dirname, SW_SHOWNORMAL);
+	int res = (int) ShellExecuteW(NULL, "open", WidenStrOS(filename).c_str(), NULL, WidenStrOS(dirname).c_str(), SW_SHOWNORMAL);
 	return res > 32;
 #else
 	posix_spawn_file_actions_t fileactions;
@@ -225,7 +226,7 @@ BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser)
 		return OpenFileWithAssociatedApp(url, NULL);
 
 #ifdef _WIN32
-	int res = (int) ShellExecuteA(NULL, "open", custombrowser, url, NULL, SW_SHOWNORMAL);
+	int res = (int) ShellExecuteW(NULL, "open", WidenStrOS(custombrowser).c_str(), WidenStrOS(url).c_str(), NULL, SW_SHOWNORMAL);
 	return res > 32;
 #else
 	posix_spawnattr_t attr;
@@ -249,14 +250,6 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 {
 	wchar_t filter[1024];
 	char initial_[MAX_PATH];
-	wchar_t title_w[256];
-	wchar_t defext_w[32];
-	wchar_t *result_w;
-
-	if (title)
-		fl_utf8towc(title, strlen(title), title_w, sizeof(title_w)/sizeof(title_w[0]));
-	if (defext)
-		fl_utf8towc(defext, strlen(defext), defext_w, sizeof(defext_w)/sizeof(defext_w[0]));
 
 	// 'initial' and 'result' may be the same buffer
 	strcpy_s(initial_, sizeof(initial_), initial);
@@ -291,7 +284,7 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 	}
 
 	char cwd[MAX_PATH];
-	_getcwd(cwd, sizeof(cwd));
+	fl_getcwd(cwd, sizeof(cwd));
 
 	fl_filename_absolute(result, len, initial_);
 
@@ -300,8 +293,12 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 		if (*s == '/')
 			*s = '\\';
 
-	result_w = new wchar_t[len];
-	fl_utf8towc(result, strlen(result), result_w, len);
+	std::wstring title_w, defext_w, result_w;
+	if (title)
+		title_w = WidenStrOS(title);
+	if (defext)
+		defext_w = WidenStrOS(defext);
+	result_w = WidenStrOS(result);
 
 	OPENFILENAMEW ofn = {};
 	ofn.lStructSize = sizeof(ofn);
@@ -324,17 +321,15 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 
 	if (res)
 	{
-		int n = WideCharToMultiByte(CP_ACP, 0, result_w, wcslen(result_w), result, len-1, NULL, NULL);
-		result[n] = 0;
-
-		if (!n)
-			res = FALSE;
+		std::string newresult = NarrowStrOS(result_w);
+		if (newresult.size() > len-1)
+			res = FALSE
+		else
+			strcpy(result, newresult.c_str());
 	}
 
-	delete[] result_w;
-
 	// OFN_NOCHANGEDIR has no effect with GetOpenFileName on win2k+ so let's make really sure no one messes with cwd
-	_chdir(cwd);
+	fl_chdir(cwd);
 
 	if (!res)
 		return FALSE;
@@ -392,7 +387,7 @@ retry:
 	{
 		// make sure file exists, otherwise return to dialog (emulate win32 open file dialog behavior)
 		struct stat st = {};
-		if (stat(s, &st) || (st.st_mode & S_IFDIR))
+		if (fl_stat(s, &st) || (st.st_mode & S_IFDIR))
 		{
 			Fl_Window *w = Fl::first_window();
 			if (w)
@@ -413,7 +408,7 @@ BOOL GetFreeDiskSpaceOS(const char *path, unsigned __int64 &freeMB)
 {
 #ifdef WIN32
 	ULARGE_INTEGER avail, tot, totavail;
-	if ( !GetDiskFreeSpaceExA(path, &avail, &tot, &totavail) )
+	if ( !GetDiskFreeSpaceExW(WidenStrOS(path).str(), &avail, &tot, &totavail) )
 		return FALSE;
 	freeMB = avail.QuadPart / (ULONGLONG)(1024*1024);
 #else
@@ -438,7 +433,7 @@ BOOL CreateThreadOS(void* (*f)(void*), void *p)
 BOOL GetFileMTimeOS(const char *fname, time_t &tm)
 {
 #ifdef _WIN32
-	HANDLE hFile = CreateFileA(fname, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hFile = CreateFileW(WidenStrOS(fname).c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 	if (hFile != INVALID_HANDLE_VALUE)
 	{
 		FILETIME ftWrite;
@@ -456,7 +451,7 @@ BOOL GetFileMTimeOS(const char *fname, time_t &tm)
 	return FALSE;
 #else
 	struct stat st = {};
-	if ( !stat(fname, &st) )
+	if ( !fl_stat(fname, &st) )
 	{
 		tm = st.st_mtime;
 		return TRUE;
@@ -468,7 +463,7 @@ BOOL GetFileMTimeOS(const char *fname, time_t &tm)
 BOOL GetFileSizeAndMTimeOS(const char *fname, unsigned __int64 &sz, time_t &tm)
 {
 #ifdef _WIN32
-	HANDLE hFile = CreateFileA(fname, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hFile = CreateFileW(WidenStrOS(fname).c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 	if (hFile != INVALID_HANDLE_VALUE)
 	{
 		FILETIME ftWrite;
@@ -486,7 +481,7 @@ BOOL GetFileSizeAndMTimeOS(const char *fname, unsigned __int64 &sz, time_t &tm)
 	return FALSE;
 #else
 	struct stat st = {};
-	if ( !stat(fname, &st) )
+	if ( !fl_stat(fname, &st) )
 	{
 		sz = st.st_size;
 		tm = st.st_mtime;
@@ -499,7 +494,7 @@ BOOL GetFileSizeAndMTimeOS(const char *fname, unsigned __int64 &sz, time_t &tm)
 BOOL CloneFileMTimeOS(const char *srcfile, const char *dstfile)
 {
 #ifdef _WIN32
-	HANDLE hFile = CreateFileA(srcfile, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hFile = CreateFileW(WidenStrOS(srcfile).c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 	if (hFile != INVALID_HANDLE_VALUE)
 	{
 		FILETIME ftWrite;
@@ -507,7 +502,7 @@ BOOL CloneFileMTimeOS(const char *srcfile, const char *dstfile)
 		CloseHandle(hFile);
 		if (bRes)
 		{
-			hFile = CreateFileA(dstfile, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+			hFile = CreateFileW(WidenStrOS(dstfile).c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 			if (hFile != INVALID_HANDLE_VALUE)
 			{
 				bRes = SetFileTime(hFile, NULL, NULL, &ftWrite);
@@ -519,15 +514,28 @@ BOOL CloneFileMTimeOS(const char *srcfile, const char *dstfile)
 	return FALSE;
 #else
 	struct stat st = {};
-	if ( !stat(srcfile, &st) )
+	if ( !fl_stat(srcfile, &st) )
 	{
-		struct _utimbuf ut;
+		struct utimbuf ut;
 		ut.actime = st.st_mtime;
 		ut.modtime = st.st_mtime;
 
-		return !_utime(dstfile, &ut);
+		return !utime(dstfile, &ut);
 	}
 	return FALSE;
+#endif
+}
+
+
+size_t GetFILESizeOS(FILE *f)
+{
+#ifdef _WIN32
+	return _filelength(_fileno(f));
+#else
+	struct stat st;
+	int fd = fileno(f);
+
+	return -1 != fd && -1 != fstat(fd, &st) ? st.st_size : 0;
 #endif
 }
 
@@ -537,7 +545,7 @@ void* LoadDynamicLibOS(const char *name)
 		return NULL;
 
 #ifdef _WIN32
-	return LoadLibraryA(name);
+	return LoadLibraryW(WidenStrOS(name).c_str());
 #else
 	return dlopen(name, RTLD_NOW);
 #endif
@@ -567,7 +575,7 @@ void* GetDynamicLibProcOS(void *handle, const char *procname)
 #endif
 }
 
-BOOL GetFmselModulePath(char *buf, int len)
+BOOL GetFmselModulePathOS(char *buf, int len)
 {
 #ifdef _WIN32
 	ASSERT(g_hDllHandle != NULL);
@@ -575,7 +583,7 @@ BOOL GetFmselModulePath(char *buf, int len)
 	if (!g_hDllHandle)
 		return FALSE;
 
-	if ( !GetModuleFileNameA(g_hDllHandle, buf, len) )
+	if ( !GetModuleFileNameW(g_hDllHandle, WidenStrOS(buf).c_str(), len) )
 	{
 		ASSERT(FALSE);
 		return FALSE;
@@ -611,7 +619,7 @@ BOOL GetFmselModulePath(char *buf, int len)
 }
 
 // recursive mkdir adapted from http://nion.modprobe.de/blog/archives/357-Recursive-directory-creation.html
-BOOL mkdir_parents(const char *dir)
+BOOL MkDirParentsOS(const char *dir)
 {
 	char tmp[MAX_PATH] = {0};
 	char *p = NULL;
@@ -620,36 +628,63 @@ BOOL mkdir_parents(const char *dir)
 	strncpy(tmp, dir, sizeof(tmp)-1);
 	len = strlen(tmp);
 
-#ifdef _WIN32
-	if (tmp[len - 1] == '\\')
+	if (tmp[len - 1] == DIRSEP)
 		tmp[len - 1] = 0;
 
+#ifdef _WIN32
 	// search starts past the drive letter
 	for (p = tmp + 3; *p; p++)
-	{
-		if (*p == '\\')
-		{
-			*p = 0;
-			_mkdir(tmp);
-			*p = '\\';
-		}
-	}
-
-	return _mkdir(tmp);
 #else
-	if (tmp[len - 1] == '/')
-		tmp[len - 1] = 0;
-
 	for (p = tmp + 1; *p; p++)
+#endif
 	{
-		if (*p == '/')
+		if (*p == DIRSEP)
 		{
 			*p = 0;
-			mkdir(tmp, 0755);
-			*p = '/';
+			fl_mkdir(tmp, DEF_DIR_MODE);
+			*p = DIRSEP;
 		}
 	}
 
-	return mkdir(tmp, 0755);
-#endif
+	return fl_mkdir(tmp, DEF_DIR_MODE);
+}
+
+std::wstring WidenStrOS(const char *s)
+{
+	const unsigned int size_w = fl_utf8towc(s, strlen(s), NULL, 0);
+	if (0 == size_w)
+		return L"";
+
+	wchar_t *s_w = (wchar_t *) alloca((size_w + 1) * sizeof(wchar_t));
+	return size_w == fl_utf8towc(s, strlen(s), s_w, size_w + 1) ? s_w : L"";
+}
+
+std::string NarrowStrOS(const wchar_t *s_w)
+{
+	const unsigned int size = fl_utf8fromwc(NULL, 0, s_w, wcslen(s_w));
+	if (0 == size)
+		return "";
+
+	char *s = (char *) alloca((size + 1) * sizeof(char));
+	return size == fl_utf8fromwc(s, size + 1, s_w, wcslen(s_w)) ? s : "";
+}
+
+std::string DemoteStrOS(const char *s)
+{
+	const unsigned int size_mb = fl_utf8to_mb(s, strlen(s), NULL, 0);
+	if (0 == size_mb)
+		return "";
+
+	char *s_mb = (char *) alloca((size_mb + 1) * sizeof(char));
+	return size_mb == fl_utf8to_mb(s, strlen(s), s_mb, size_mb + 1) ? s_mb : "";
+}
+
+std::string PromoteStrOS(const char *s_mb)
+{
+	const unsigned int size = fl_utf8from_mb(NULL, 0, s_mb, strlen(s_mb));
+	if (0 == size)
+		return "";
+
+	char *s = (char *) alloca((size + 1) * sizeof(char));
+	return size == fl_utf8from_mb(s, size + 1, s_mb, strlen(s_mb)) ? s : "";
 }
