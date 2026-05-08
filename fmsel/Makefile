@@ -34,8 +34,8 @@ ifeq ($(TARGET_OS),Windows_NT)
 	CPPFLAGS_C_ALL += -DNO_VIZ
 	CPPFLAGS_CXX_ALL += -I../zlibcomp
 else
-	CFLAGS_ALL += -fPIC
-	CXXFLAGS_ALL += -fPIC
+	CFLAGS_ALL += -fPIC -fvisibility=hidden
+	CXXFLAGS_ALL += -fPIC -fvisibility=hidden
 	CPPFLAGS_CXX_ALL += -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_LARGEFILE_SOURCE -DLARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D__int64="long long int"
 ifneq ($(USE_PATH_MAX),)
 	CPPFLAGS_CXX_ALL += -DUSE_PATH_MAX
@@ -85,8 +85,8 @@ ifeq ($(TARGET_OS),Windows_NT)
 	SONAME ?= fmsel.dll
 else
 	LIBS += -lminizip
-	SONAME ?= libfmsel.so
-	LDFLAGS_ALL += -Wl,-soname,$(SONAME)
+	SONAME ?= libfmsel.so.1
+	LDFLAGS_ALL += -Wl,--no-undefined -Wl,-soname,$(SONAME)
 endif
 
 TOOL_LIBS = -l:$(SONAME)
