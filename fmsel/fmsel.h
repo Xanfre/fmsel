@@ -44,7 +44,9 @@
 
 #endif // defined(WIN32) || defined(__CYGWIN__)
 
-#pragma pack(4)
+#ifdef _WIN32
+#pragma pack(push, 4)
+#endif
 
 typedef struct sFMSelectorData
 {
@@ -85,9 +87,15 @@ typedef struct sFMSelectorData
 	char *sLanguage;
 	int nLanguageLen;
 	int bForceLanguage;
+
+	// list of mod paths provided to the game
+	const char *sModPaths;
+	const char *sUberModPaths;
 } sFMSelectorData;
 
-#pragma pack()
+#ifdef _WIN32
+#pragma pack(pop)
+#endif
 
 
 typedef enum eFMSelReturn

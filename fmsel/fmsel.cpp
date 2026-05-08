@@ -313,6 +313,10 @@ static void OnAddCustomTag(Fl_FM_Tag_Input *o, void *p);
 static void OnTagPreset(Fl_Choice *o, void *p);
 static void OnTagEdViewInfoFile(Fl_Button *o, void *p);
 static void SetAddTagInputText(const char *s);
+static void OnEnableAllMods(Fl_Button*, void*);
+static void OnDisableAllMods(Fl_Button*, void*);
+static void OnEnableUberMods(Fl_Button*, void*);
+static void OnEnableUserMods(Fl_Button*, void*);
 static void OnCancelTagEditor(Fl_Button*, void*);
 static void OnOkTagEditor(Fl_Button*, void*);
 
@@ -11505,6 +11509,86 @@ static void OnTagEdViewInfoFile(Fl_Button *, void *)
 	}
 }
 
+static vector<string> GetModPaths()
+{
+	vector<string> modpaths;
+
+#ifdef _WIN32
+	string s = PromoteStrOS(g_pFMSelData->sUberModPaths);
+	if (s.size() > 0)
+		s.append("+");
+	s.append(PromoteStrOS(g_pFMSelData->sModPaths));
+#else
+	string s = g_pFMSelData->sUberModPaths;
+	if (s.size() > 0)
+		s.append("+");
+	s.append(g_pFMSelData->sModPaths);
+#endif
+
+	size_t cur = 0, next;
+
+	do
+	{
+		next = s.find_first_of("+", cur);
+		string path = s.substr(cur, next - cur);
+		if (path.size() > 0)
+			modpaths.push_back(path);
+		cur = next + 1;
+	}
+	while (next != string::npos);
+
+	return modpaths;
+}
+
+static int GetNumUberMods()
+{
+#ifdef _WIN32
+	string s = PromoteStrOS(g_pFMSelData->sUberModPaths);
+#else
+	string s = g_pFMSelData->sUberModPaths;
+#endif
+
+	int ubermods = 0;
+	size_t cur = 0, next;
+
+	do
+	{
+		next = s.find_first_of("+", cur);
+		if (s.substr(cur, next - cur).size() > 0)
+			ubermods++;
+		cur = next + 1;
+	}
+	while (next != string::npos);
+
+	return ubermods;
+}
+
+static void OnEnableAllMods(Fl_Button*, void*)
+{
+	pTagEdMods->check_all();
+}
+
+static void OnDisableAllMods(Fl_Button*, void*)
+{
+	pTagEdMods->check_none();
+}
+
+static void OnEnableUberMods(Fl_Button*, void*)
+{
+	int ubermods = GetNumUberMods();
+
+	for (int i = 1; i <= pTagEdMods->nitems(); i++)
+		pTagEdMods->checked(i, i <= ubermods ? 1 : 0);
+}
+
+static void OnEnableUserMods(Fl_Button*, void*)
+{
+	int ubermods = GetNumUberMods();
+
+	for (int i = 1; i <= pTagEdMods->nitems(); i++)
+		pTagEdMods->checked(i, i > ubermods ? 1 : 0);
+}
+
 static void OnModifyFMConfig(int, int nInserted, int nDeleted, int, const char *, void *cbArg)
 {
 	if (cbArg && (nInserted > 0 || nDeleted > 0)) *(BOOL*)cbArg = TRUE;
@@ -11617,10 +11701,6 @@ invalid_date:
 			return TRUE;
 	}
 
-	// mod excludes
-	if (Trimmed( pTagEdModExclude->value() ) != fm->modexclude)
-		return TRUE;
-
 	// release date verified
 	if (!(fm->flags & FMEntry::FLAG_UnverifiedRelDate) != !pTagEdUnverified->value())
 		return TRUE;
@@ -11643,6 +11723,29 @@ invalid_date:
 
 	// config
 	if (g_bTagEdFMConfigModified)
+		return TRUE;
+
+	// mod excludes
+	string modexclude;
+	bool excludeall = true;
+	for (int i = 1; i <= pTagEdMods->nitems(); i++)
+	{
+		if (!pTagEdMods->checked(i))
+		{
+			const char *text = pTagEdMods->text(i);
+			if (text && *text)
+			{
+				if (modexclude.size() > 0)
+					modexclude.append("+");
+				modexclude.append(text);
+			}
+		}
+		else if (excludeall)
+			excludeall = false;
+	}
+	if (excludeall)
+		modexclude = "*";
+	if (modexclude != fm->modexclude)
 		return TRUE;
 
 	return FALSE;
@@ -11731,8 +11834,6 @@ static void OnOkTagEditor(Fl_Button *, void *)
 	else
 		fm->flags &= ~FMEntry::FLAG_UnverifiedRelDate;
 
-	fm->SetModExclude( Trimmed(pTagEdModExclude->value()).c_str() );
-
 	if (!g_bTagEdFakeFM)
 	{
 		if ( !g_infoFiles.empty() )
@@ -11783,6 +11884,31 @@ static void OnOkTagEditor(Fl_Button *, void *)
 			g_pConfigBuffer->savefile(fname);
 	}
 	g_bTagEdFMConfigModified = FALSE;
+
+	//
+	// TABPAGE_MODS
+	//
+
+	string modexclude;
+	bool excludeall = true;
+	for (int i = 1; i <= pTagEdMods->nitems(); i++)
+	{
+		if (!pTagEdMods->checked(i))
+		{
+			const char *text = pTagEdMods->text(i);
+			if (text && *text)
+			{
+				if (modexclude.size() > 0)
+					modexclude.append("+");
+				modexclude.append(text);
+			}
+		}
+		else if (excludeall)
+			excludeall = false;
+	}
+	if (excludeall)
+		modexclude = "*";
+	fm->SetModExclude( modexclude.c_str() );
 
 	//
 
@@ -11893,9 +12019,6 @@ static void InitTagEdDialog(Fl_Window *pDlg, FMEntry *fm)
 		if (fm->flags & FMEntry::FLAG_UnverifiedRelDate)
 			pTagEdUnverified->value(1);
 	}
-
-	if ( !fm->modexclude.empty() )
-		pTagEdModExclude->value( fm->modexclude.c_str() );
 
 	if (!g_bTagEdFakeFM)
 	{
@@ -12040,10 +12163,59 @@ static void InitTagEdDialog(Fl_Window *pDlg, FMEntry *fm)
 		if (_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP_STR "%s" DIRSEP_STR "fm.cfg", GetRootPath(), fm->name) != -1)
 		{
 			g_pConfigBuffer->loadfile(fname);
+#ifndef _WIN32
+			// remove trailing carriage returns
+			int pos = 0;
+			while (g_pConfigBuffer->findchar_forward(pos, '\r', &pos))
+				g_pConfigBuffer->remove(pos, pos + 1);
+#endif
 			g_pConfigBuffer->add_modify_callback(OnModifyFMConfig, &g_bTagEdFMConfigModified);
 		}
 	}
 	g_bTagEdFMConfigModified = FALSE;
+
+	//
+	// TABPAGE_MODS
+	//
+
+	vector<string> modpaths = GetModPaths();
+	for (size_t i = 0; i < modpaths.size(); i++)
+		pTagEdMods->add(modpaths[i].c_str(), 1);
+	if ( !fm->modexclude.empty() )
+	{
+		if (fm->modexclude == "*")
+		{
+			pTagEdMods->check_none();
+		}
+		else
+		{
+			vector<string> modexcludes;
+			size_t cur = 0, next;
+
+			do
+			{
+				next = fm->modexclude.find_first_of("+", cur);
+				string path = fm->modexclude.substr(cur, next - cur);
+				if (path.size() > 0)
+					modexcludes.push_back(path);
+				cur = next + 1;
+			}
+			while (next != string::npos);
+
+			for (size_t i = 0; i < modexcludes.size(); i++)
+			{
+				for (int j = 1; j <= pTagEdMods->nitems(); j++)
+				{
+					const char *text = pTagEdMods->text(j);
+					if (text && !_stricmp(modexcludes[i].c_str(), text))
+					{
+						pTagEdMods->checked(j, 0);
+						break;
+					}
+				}
+			}
+		}
+	}
 
 	//
 
@@ -12052,15 +12224,15 @@ static void InitTagEdDialog(Fl_Window *pDlg, FMEntry *fm)
 	{
 		pTagEdName->deactivate();
 		pTagEdUnverified->deactivate();
-		pTagEdModExclude->deactivate();
+		pTagEdMods->deactivate();
 		pTagEdNotes->deactivate();
 		pTagEdConfig->deactivate();
 	}
 #ifdef T3_SUPPORT
 	else if (g_bRunningThief3)
 	{
-		pTagEdModExclude->deactivate();
 		pTagEdConfig->deactivate();
+		pTagEdMods->deactivate();
 	}
 #endif
 	else if (!fm->IsInstalled())
@@ -13038,16 +13210,14 @@ static void HideStartupMessage()
 {
 	if (g_pStartupWnd)
 	{
-		// empty message queue
-		while ( Fl::readqueue() );
-		Fl::wait(50.0/1000.0);
-
 		g_pStartupWnd->hide();
 
 		delete (Fl_Widget*)g_pStartupWnd;
 		g_pStartupWnd = NULL;
 
 		ShowBusyCursor(FALSE);
+
+		Fl::flush();
 	}
 }
 
@@ -13200,6 +13370,8 @@ abort:
 		TermArchiveSystem();
 		TermFLTK();
 		CleanupLocalization();
+
+		Fl::flush();
 
 		return g_appReturn;
 	}

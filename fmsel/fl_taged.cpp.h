@@ -24,8 +24,6 @@ static Fl_Int_Input *pTagEdRelDay=(Fl_Int_Input *)0;
 
 static Fl_Check_Button *pTagEdUnverified=(Fl_Check_Button *)0;
 
-static Fl_Input *pTagEdModExclude=(Fl_Input *)0;
-
 static Fl_FM_Tag_Input *pTagEdInput=(Fl_FM_Tag_Input *)0;
 
 Fl_Button *pTagEdAddTag=(Fl_Button *)0;
@@ -40,8 +38,18 @@ static Fl_Text_Editor *pTagEdNotes=(Fl_Text_Editor *)0;
 
 static Fl_Text_Editor *pTagEdConfig=(Fl_Text_Editor *)0;
 
+Fl_Check_Browser *pTagEdMods=(Fl_Check_Browser *)0;
+
+Fl_Button *pTagEdAllMods=(Fl_Button *)0;
+
+Fl_Button *pTagEdNoMods=(Fl_Button *)0;
+
+Fl_Button *pTagEdUberMods=(Fl_Button *)0;
+
+Fl_Button *pTagEdUserMods=(Fl_Button *)0;
+
 static Fl_FM_TagEd_Window* MakeTagEditor() {
-  { pTagEdWnd = new Fl_FM_TagEd_Window(540, 260, ("FMSel"));
+  { pTagEdWnd = new Fl_FM_TagEd_Window(540, 260, $("FMSel"));
     pTagEdWnd->box(FL_FLAT_BOX);
     pTagEdWnd->color(FL_BACKGROUND_COLOR);
     pTagEdWnd->selection_color(FL_BACKGROUND_COLOR);
@@ -52,102 +60,96 @@ static Fl_FM_TagEd_Window* MakeTagEditor() {
     pTagEdWnd->align(Fl_Align(FL_ALIGN_TOP));
     pTagEdWnd->when(FL_WHEN_RELEASE);
     { pTagEdTabs = new Fl_Tabs(0, 4, 544, 215);
-      { Fl_Group* o = new Fl_Group(0, 22, 540, 197, ("Misc"));
+      { Fl_Group* o = new Fl_Group(0, 22, 540, 197, $("Misc"));
         o->labelfont(1);
         o->labelsize(11);
         o->labelcolor(FL_INACTIVE_COLOR);
         o->hide();
         { Fl_Group* o = new Fl_Group(6, 29, 528, 134);
-          { pTagEdNiceName = new Fl_Input(6, 43, 250, 25, ("Display Name"));
-            pTagEdNiceName->tooltip(("Optional name to display in list instead of directory name"));
+          { pTagEdNiceName = new Fl_Input(6, 43, 250, 25, $("Display Name"));
+            pTagEdNiceName->tooltip($("Optional name to display in list instead of directory name"));
             pTagEdNiceName->labelsize(11);
             pTagEdNiceName->align(Fl_Align(FL_ALIGN_TOP_LEFT));
             pTagEdNiceName->when(FL_WHEN_CHANGED);
             Fl_Group::current()->resizable(pTagEdNiceName);
           } // Fl_Input* pTagEdNiceName
-          { Fl_Output* o = pTagEdName = new Fl_Output(6, 90, 250, 25, ("Directory Name"));
-            pTagEdName->tooltip(("Directory name (default name displayed in list)"));
+          { Fl_Output* o = pTagEdName = new Fl_Output(6, 90, 250, 25, $("Directory Name"));
+            pTagEdName->tooltip($("Directory name (default name displayed in list)"));
             pTagEdName->labelsize(11);
             pTagEdName->align(Fl_Align(FL_ALIGN_TOP_LEFT));
             o->color(FL_GRAY0+19);
           } // Fl_Output* pTagEdName
-          { Fl_Output* o = pTagEdArchive = new Fl_Output(6, 137, 250, 25, ("Archive  Name"));
-            pTagEdArchive->tooltip(("Archive file associated with this FM"));
+          { Fl_Output* o = pTagEdArchive = new Fl_Output(6, 137, 250, 25, $("Archive  Name"));
+            pTagEdArchive->tooltip($("Archive file associated with this FM"));
             pTagEdArchive->labelsize(11);
             pTagEdArchive->align(Fl_Align(FL_ALIGN_TOP_LEFT));
             o->color(FL_GRAY0+19);
           } // Fl_Output* pTagEdArchive
-          { pTagEdInfoFile = new Fl_Choice(278, 43, 225, 25, ("Info File"));
-            pTagEdInfoFile->tooltip(("FM info/readme file"));
+          { pTagEdInfoFile = new Fl_Choice(278, 43, 225, 25, $("Info File"));
+            pTagEdInfoFile->tooltip($("FM info/readme file"));
             pTagEdInfoFile->down_box(FL_BORDER_BOX);
             pTagEdInfoFile->labelsize(11);
             pTagEdInfoFile->align(Fl_Align(FL_ALIGN_TOP_LEFT));
           } // Fl_Choice* pTagEdInfoFile
           { Fl_Button* o = pTagEdViewInfo = new Fl_Button(508, 43, 26, 25);
-            pTagEdViewInfo->tooltip(("View/Open info file"));
+            pTagEdViewInfo->tooltip($("View/Open info file"));
             pTagEdViewInfo->labelsize(12);
             pTagEdViewInfo->callback((Fl_Callback*)OnTagEdViewInfoFile);
             pTagEdViewInfo->align(Fl_Align(FL_ALIGN_CENTER|FL_ALIGN_INSIDE));
             o->image(imgViewFile);
             o->deimage(pImgViewFileGray);
           } // Fl_Button* pTagEdViewInfo
-          { Fl_Box* o = new Fl_Box(276, 76, 115, 16, ("Release Date"));
+          { Fl_Box* o = new Fl_Box(276, 76, 115, 16, $("Release Date"));
             o->labelsize(11);
             o->align(Fl_Align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE));
           } // Fl_Box* o
-          { pTagEdRelYear = new Fl_Int_Input(278, 90, 40, 25, ("Year"));
-            pTagEdRelYear->tooltip(("Release date year (YYYY)"));
+          { pTagEdRelYear = new Fl_Int_Input(278, 90, 40, 25, $("Year"));
+            pTagEdRelYear->tooltip($("Release date year (YYYY)"));
             pTagEdRelYear->type(2);
             pTagEdRelYear->labelsize(10);
             pTagEdRelYear->align(Fl_Align(FL_ALIGN_BOTTOM));
             pTagEdRelYear->when(FL_WHEN_CHANGED);
           } // Fl_Int_Input* pTagEdRelYear
-          { new Fl_Box(320, 90, 10, 25, ("-"));
+          { new Fl_Box(320, 90, 10, 25, $("-"));
           } // Fl_Box* o
-          { pTagEdRelMonth = new Fl_Int_Input(331, 91, 25, 24, ("Month"));
-            pTagEdRelMonth->tooltip(("Release date month (1-12)"));
+          { pTagEdRelMonth = new Fl_Int_Input(331, 91, 25, 24, $("Month"));
+            pTagEdRelMonth->tooltip($("Release date month (1-12)"));
             pTagEdRelMonth->type(2);
             pTagEdRelMonth->labelsize(10);
             pTagEdRelMonth->align(Fl_Align(FL_ALIGN_BOTTOM));
             pTagEdRelMonth->when(FL_WHEN_CHANGED);
           } // Fl_Int_Input* pTagEdRelMonth
-          { new Fl_Box(358, 90, 10, 25, ("-"));
+          { new Fl_Box(358, 90, 10, 25, $("-"));
           } // Fl_Box* o
-          { pTagEdRelDay = new Fl_Int_Input(368, 90, 25, 25, ("Day"));
-            pTagEdRelDay->tooltip(("Release date day (1-31)"));
+          { pTagEdRelDay = new Fl_Int_Input(368, 90, 25, 25, $("Day"));
+            pTagEdRelDay->tooltip($("Release date day (1-31)"));
             pTagEdRelDay->type(2);
             pTagEdRelDay->labelsize(10);
             pTagEdRelDay->align(Fl_Align(FL_ALIGN_BOTTOM));
             pTagEdRelDay->when(FL_WHEN_CHANGED);
           } // Fl_Int_Input* pTagEdRelDay
-          { pTagEdUnverified = new Fl_Check_Button(402, 92, 125, 21, ("Unverified"));
-            pTagEdUnverified->tooltip(("Release date is unverified (usually set for automatically scanned date)"));
+          { pTagEdUnverified = new Fl_Check_Button(402, 92, 125, 21, $("Unverified"));
+            pTagEdUnverified->tooltip($("Release date is unverified (usually set for automatically scanned date)"));
             pTagEdUnverified->down_box(FL_DOWN_BOX);
           } // Fl_Check_Button* pTagEdUnverified
           o->end();
         } // Fl_Group* o
-        { Fl_Group* o = new Fl_Group(6, 164, 528, 4);
+        { Fl_Group* o = new Fl_Group(6, 171, 528, 38);
           o->end();
           Fl_Group::current()->resizable(o);
         } // Fl_Group* o
-        { pTagEdModExclude = new Fl_Input(6, 183, 528, 25, ("Mod Path Excludes"));
-          pTagEdModExclude->tooltip(("Mod paths to exclude when running this FM (use + to separate paths)"));
-          pTagEdModExclude->labelsize(11);
-          pTagEdModExclude->align(Fl_Align(FL_ALIGN_TOP_LEFT));
-          pTagEdModExclude->when(FL_WHEN_CHANGED);
-        } // Fl_Input* pTagEdModExclude
         o->labelsize(FL_NORMAL_SIZE-1);
         o->end();
         Fl_Group::current()->resizable(o);
       } // Fl_Group* o
-      { Fl_Group* o = new Fl_Group(0, 22, 544, 197, ("Tags"));
+      { Fl_Group* o = new Fl_Group(0, 22, 544, 197, $("Tags"));
         o->labelfont(1);
         o->labelsize(11);
         o->labelcolor(FL_INACTIVE_COLOR);
         o->hide();
         { Fl_Group* o = new Fl_Group(6, 28, 528, 45);
-          { Fl_FM_Tag_Input* o = pTagEdInput = new Fl_FM_Tag_Input(6, 43, 242, 25, ("Add Tag"));
-            pTagEdInput->tooltip(("Press enter to add tag"));
+          { Fl_FM_Tag_Input* o = pTagEdInput = new Fl_FM_Tag_Input(6, 43, 242, 25, $("Add Tag"));
+            pTagEdInput->tooltip($("Press enter to add tag"));
             pTagEdInput->box(FL_DOWN_BOX);
             pTagEdInput->color(FL_BACKGROUND2_COLOR);
             pTagEdInput->selection_color(FL_SELECTION_COLOR);
@@ -162,7 +164,7 @@ static Fl_FM_TagEd_Window* MakeTagEditor() {
             o->textsize(FL_NORMAL_SIZE);
           } // Fl_FM_Tag_Input* pTagEdInput
           { Fl_Button* o = pTagEdAddTag = new Fl_Button(251, 43, 26, 25);
-            pTagEdAddTag->tooltip(("Add Tag"));
+            pTagEdAddTag->tooltip($("Add Tag"));
             pTagEdAddTag->labelsize(12);
             pTagEdAddTag->callback((Fl_Callback*)OnTagEdAddTag);
             pTagEdAddTag->align(Fl_Align(FL_ALIGN_CENTER|FL_ALIGN_INSIDE));
@@ -201,13 +203,13 @@ static Fl_FM_TagEd_Window* MakeTagEditor() {
         o->labelsize(FL_NORMAL_SIZE-1);
         o->end();
       } // Fl_Group* o
-      { Fl_Group* o = new Fl_Group(0, 22, 540, 197, ("Descr"));
+      { Fl_Group* o = new Fl_Group(0, 22, 540, 197, $("Descr"));
         o->labelfont(1);
         o->labelsize(11);
         o->labelcolor(FL_INACTIVE_COLOR);
         o->hide();
         { pTagEdDescr = new Fl_Text_Editor(6, 30, 528, 182);
-          pTagEdDescr->tooltip(("Mission description with max 1500 characters"));
+          pTagEdDescr->tooltip($("Mission description with max 1500 characters"));
           pTagEdDescr->box(FL_FLAT_BOX);
           pTagEdDescr->labelsize(12);
           Fl_Group::current()->resizable(pTagEdDescr);
@@ -215,7 +217,7 @@ static Fl_FM_TagEd_Window* MakeTagEditor() {
         o->labelsize(FL_NORMAL_SIZE-1);
         o->end();
       } // Fl_Group* o
-      { Fl_Group* o = new Fl_Group(0, 22, 540, 197, ("Notes"));
+      { Fl_Group* o = new Fl_Group(0, 22, 540, 197, $("Notes"));
         o->labelfont(1);
         o->labelsize(11);
         o->labelcolor(FL_INACTIVE_COLOR);
@@ -228,11 +230,13 @@ static Fl_FM_TagEd_Window* MakeTagEditor() {
         o->labelsize(FL_NORMAL_SIZE-1);
         o->end();
       } // Fl_Group* o
-      { Fl_Group* o = new Fl_Group(0, 22, 540, 197, ("Config"));
+      { Fl_Group* o = new Fl_Group(0, 22, 540, 197, $("Config"));
         o->labelfont(1);
         o->labelsize(11);
         o->labelcolor(FL_INACTIVE_COLOR);
+        o->hide();
         { pTagEdConfig = new Fl_Text_Editor(6, 30, 528, 182);
+          pTagEdConfig->tooltip($("FM configuration variables"));
           pTagEdConfig->box(FL_FLAT_BOX);
           pTagEdConfig->labelsize(12);
           Fl_Group::current()->resizable(pTagEdConfig);
@@ -240,15 +244,53 @@ static Fl_FM_TagEd_Window* MakeTagEditor() {
         o->labelsize(FL_NORMAL_SIZE-1);
         o->end();
       } // Fl_Group* o
+      { Fl_Group* o = new Fl_Group(0, 22, 540, 197, $("Mods"));
+        o->labelfont(1);
+        o->labelsize(11);
+        o->labelcolor(FL_INACTIVE_COLOR);
+        { pTagEdMods = new Fl_Check_Browser(6, 30, 435, 182);
+          pTagEdMods->box(FL_FLAT_BOX);
+          pTagEdMods->labelsize(12);
+          Fl_Group::current()->resizable(pTagEdMods);
+        } // Fl_Check_Browser* pTagEdMods
+        { Fl_Group* o = new Fl_Group(450, 32, 80, 177);
+          { Fl_Group* o = new Fl_Group(450, 32, 80, 124);
+            { pTagEdAllMods = new Fl_Button(450, 32, 80, 25, $("All"));
+              pTagEdAllMods->tooltip($("Enable all mods"));
+              pTagEdAllMods->callback((Fl_Callback*)OnEnableAllMods);
+            } // Fl_Button* pTagEdAllMods
+            { pTagEdNoMods = new Fl_Button(450, 65, 80, 25, $("None"));
+              pTagEdNoMods->tooltip($("Disable all mods"));
+              pTagEdNoMods->callback((Fl_Callback*)OnDisableAllMods);
+            } // Fl_Button* pTagEdNoMods
+            { pTagEdUberMods = new Fl_Button(450, 98, 80, 25, $("Uber"));
+              pTagEdUberMods->tooltip($("Enable uber mods only"));
+              pTagEdUberMods->callback((Fl_Callback*)OnEnableUberMods);
+            } // Fl_Button* pTagEdUberMods
+            { pTagEdUserMods = new Fl_Button(450, 131, 80, 25, $("User"));
+              pTagEdUserMods->tooltip($("Enable user mods only"));
+              pTagEdUserMods->callback((Fl_Callback*)OnEnableUserMods);
+            } // Fl_Button* pTagEdUserMods
+            o->end();
+          } // Fl_Group* o
+          { Fl_Group* o = new Fl_Group(450, 164, 80, 45);
+            o->end();
+            Fl_Group::current()->resizable(o);
+          } // Fl_Group* o
+          o->end();
+        } // Fl_Group* o
+        o->labelsize(FL_NORMAL_SIZE-1);
+        o->end();
+      } // Fl_Group* o
       pTagEdTabs->end();
       Fl_Group::current()->resizable(pTagEdTabs);
     } // Fl_Tabs* pTagEdTabs
     { Fl_Group* o = new Fl_Group(5, 227, 533, 25);
-      { Fl_Button* o = new Fl_Button(448, 227, 80, 25, ("Cancel"));
+      { Fl_Button* o = new Fl_Button(448, 227, 80, 25, $("Cancel"));
         o->shortcut(0xff1b);
         o->callback((Fl_Callback*)OnCancelTagEditor);
       } // Fl_Button* o
-      { Fl_Button* o = new Fl_Button(357, 227, 80, 25, ("OK"));
+      { Fl_Button* o = new Fl_Button(357, 227, 80, 25, $("OK"));
         o->callback((Fl_Callback*)OnOkTagEditor);
       } // Fl_Button* o
       { Fl_Group* o = new Fl_Group(5, 227, 345, 25);

@@ -19,6 +19,16 @@ extern Fl_Button *pTagEdAddTag;
 extern void OnTagPreset(Fl_Choice*, void*);
 extern Fl_FM_Tag_Group *pTagEdGroup;
 #include <FL/Fl_Text_Editor.H>
+#include <FL/Fl_Check_Browser.H>
+extern Fl_Check_Browser *pTagEdMods;
+extern void OnEnableAllMods(Fl_Button*, void*);
+extern Fl_Button *pTagEdAllMods;
+extern void OnDisableAllMods(Fl_Button*, void*);
+extern Fl_Button *pTagEdNoMods;
+extern void OnEnableUberMods(Fl_Button*, void*);
+extern Fl_Button *pTagEdUberMods;
+extern void OnEnableUserMods(Fl_Button*, void*);
+extern Fl_Button *pTagEdUserMods;
 extern void OnCancelTagEditor(Fl_Button*, void*);
 extern void OnOkTagEditor(Fl_Button*, void*);
 #endif

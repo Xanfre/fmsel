@@ -1,15 +1,17 @@
 # data file for the Fltk User Interface Designer (fluid)
-version 1.0309
+version 1.0401
 i18n_type 1
-i18n_include 
-i18n_function $
+i18n_include {}
+i18n_conditional {}
+i18n_gnu_function {$}
+i18n_gnu_static_function {}
 header_name {.h}
 code_name {.cpp.h}
 Function {MakeDarkConfigWindow()} {open private
 } {
   Fl_Window pDarkCfgWnd {
     label {Game Options} open
-    private xywh {355 290 615 405} type Double modal visible
+    private xywh {356 291 615 405} type Double modal visible
   } {
     Fl_Browser pCategoryList {
       private xywh {2 5 128 367} type Select textfont 1

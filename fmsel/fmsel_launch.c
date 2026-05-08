@@ -39,7 +39,8 @@
 // prototypes
 int StartFMSel(const char *game, const char *rootPath, const char *lang,
 	const char *exited, const int rootLen, const int nameLen,
-	const int modExcludeLen, const int langLen,
+	const int modExcludeLen, const int langLen, const char *modPaths,
+	const char *uberModPaths,
 #ifdef _WIN32
 	const unsigned long pipeFD
 #else
@@ -61,26 +62,30 @@ void WriteDataToPipe(const sFMSelectorData *data, const int pipeFD);
 int main(const int argc, const char **argv)
 {
 	// Check parameter count.
-	if ((1 != argc && 4 != argc && 5 != argc && 9 != argc && 10 != argc)
+	if ((1 != argc && 4 != argc && 5 != argc && 9 != argc && 11 != argc
+			&& 12 != argc)
 		|| (argc >= 5 && strcmp(argv[4], "true") && strcmp(argv[4], "false")))
 	{
 		printf("Usage:\n\t%s [GameVersion RootPath Language ["
 			" ExitedGame(true,false) [ MaxRootLen MaxNameLen MaxModExcludeLen"
-			" LanguageLen [ PipePID ] ] ] ]\n\n", argv[0]);
+			" LanguageLen [ ModPaths UberModPaths [ PipePID ] ] ] ] ]\n\n",
+			argv[0]);
 		return FMSEL_L_RET_ERR;
 	}
 	// Establish defaults and start FMSel.
 	const int strsSet = argc >= 4;
 	const int sizesSet = argc >= 9;
+	const int pathsSet = argc >= 11;
 	return StartFMSel(strsSet ? argv[1] : "(No Game Running)",
 		strsSet ? argv[2] : NULL, strsSet ? argv[3] : "english",
 		argc >= 5 ? argv[4] : "false", sizesSet ? atoi(argv[5]) : PATH_MAX,
 		sizesSet ? atoi(argv[6]) : 1 << 7, sizesSet ? atoi(argv[7]) : PATH_MAX,
-		sizesSet ? atoi(argv[8]) : 1 << 6,
+		sizesSet ? atoi(argv[8]) : 1 << 6, pathsSet ? argv[9] : "",
+		pathsSet ? argv[10] : "",
 #ifdef _WIN32
-		10 == argc ? strtoul(argv[9], NULL, 0) : 0
+		12 == argc ? strtoul(argv[11], NULL, 0) : 0
 #else
-		10 == argc ? atoi(argv[9]) : -1
+		12 == argc ? atoi(argv[11]) : -1
 #endif
 	);
 }
@@ -92,7 +97,8 @@ int main(const int argc, const char **argv)
  */
 int StartFMSel(const char *game, const char *rootPath, const char *lang,
 	const char *exited, const int rootLen, const int nameLen,
-	const int modExcludeLen, const int langLen,
+	const int modExcludeLen, const int langLen, const char *modPaths,
+	const char *uberModPaths,
 #ifdef _WIN32
 	const unsigned long pipeFD
 #else
@@ -122,6 +128,8 @@ int StartFMSel(const char *game, const char *rootPath, const char *lang,
 	data.sLanguage = calloc(langLen, sizeof(char));
 	data.nLanguageLen = langLen;
 	data.bForceLanguage = 0;
+	data.sModPaths = modPaths;
+	data.sUberModPaths = uberModPaths;
 	// Check allocated buffers.
 	if (NULL == data.sRootPath || NULL == data.sName
 		|| NULL == data.sModExcludePaths || NULL == data.sLanguage)

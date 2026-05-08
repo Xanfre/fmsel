@@ -1,15 +1,17 @@
 # data file for the Fltk User Interface Designer (fluid)
 version 1.0401
 i18n_type 1
-i18n_include 
-i18n_function $
+i18n_include {}
+i18n_conditional {}
+i18n_gnu_function {$}
+i18n_gnu_static_function {}
 header_name {.h}
 code_name {.cpp.h}
 Function {MakeTagEditor()} {open private
 } {
   Fl_Window pTagEdWnd {
     label FMSel open
-    xywh {354 294 540 260} type Double resizable
+    xywh {377 317 540 260} type Double resizable
     class Fl_FM_TagEd_Window modal size_range {540 260 0 0} visible
   } {
     Fl_Tabs pTagEdTabs {open
@@ -77,12 +79,8 @@ Function {MakeTagEditor()} {open private
           }
         }
         Fl_Group {} {open
-          xywh {6 164 528 4} resizable
+          xywh {6 171 528 38} resizable
         } {}
-        Fl_Input pTagEdModExclude {
-          label {Mod Path Excludes}
-          private tooltip {Mod paths to exclude when running this FM (use + to separate paths)} xywh {6 183 528 25} labelsize 11 align 5 when 1
-        }
       }
       Fl_Group {} {
         label Tags open
@@ -140,11 +138,51 @@ Function {MakeTagEditor()} {open private
       }
       Fl_Group {} {
         label Config open
+        xywh {0 22 540 197} labelfont 1 labelsize 11 labelcolor 8 hide
+        code0 {o->labelsize(FL_NORMAL_SIZE-1);}
+      } {
+        Fl_Text_Editor pTagEdConfig {
+          private tooltip {FM configuration variables} xywh {6 30 528 182} box FLAT_BOX labelsize 12 resizable
+        }
+      }
+      Fl_Group {} {
+        label Mods open
         xywh {0 22 540 197} labelfont 1 labelsize 11 labelcolor 8
         code0 {o->labelsize(FL_NORMAL_SIZE-1);}
       } {
-        Fl_Text_Editor pTagEdConfig {selected
-          private xywh {6 30 528 182} box FLAT_BOX labelsize 12 resizable
+        Fl_Check_Browser pTagEdMods {
+          xywh {6 30 435 182} box FLAT_BOX labelsize 12 resizable
+        }
+        Fl_Group {} {open
+          xywh {450 32 80 177}
+        } {
+          Fl_Group {} {open
+            xywh {450 32 80 124}
+          } {
+            Fl_Button pTagEdAllMods {
+              label All
+              callback OnEnableAllMods
+              tooltip {Enable all mods} xywh {450 32 80 25}
+            }
+            Fl_Button pTagEdNoMods {
+              label None
+              callback OnDisableAllMods
+              tooltip {Disable all mods} xywh {450 65 80 25}
+            }
+            Fl_Button pTagEdUberMods {
+              label Uber
+              callback OnEnableUberMods
+              tooltip {Enable uber mods only} xywh {450 98 80 25}
+            }
+            Fl_Button pTagEdUserMods {
+              label User
+              callback OnEnableUserMods
+              tooltip {Enable user mods only} xywh {450 131 80 25}
+            }
+          }
+          Fl_Group {} {open selected
+            xywh {450 164 80 45} resizable
+          } {}
         }
       }
     }
