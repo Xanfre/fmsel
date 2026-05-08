@@ -8,3 +8,8 @@ fmsel/fmsel
 *.ncb
 *.suo
 *.user
+fltk
+ogg
+opus
+flac
+dr_libs
