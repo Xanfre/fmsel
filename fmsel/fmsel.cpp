@@ -75,6 +75,9 @@
 #include "mp3.h"
 #endif
 
+#include "Fle_Colors.hpp"
+#include "Fle_Schemes.hpp"
+
 #include "icons.h"
 
 #include <string>
@@ -117,8 +120,27 @@ static const char *TAGS_LABEL = "tags:";
 static const char *RATING_COL_LABEL = "Rating";
 
 
-#define USER_CLR			96
-#define TOGBTN_DN_CLR		(Fl_Color)USER_CLR
+static Fl_Color fl_themed_rgb_color(unsigned char r, unsigned char g, unsigned char b)
+{
+	static unsigned char m = 0;
+	if (m == 0)
+	{
+		unsigned char wr, wg, wb;
+		Fl::get_color(FL_WHITE, wr, wg, wb);
+
+		m = std::max(wr, std::max(wg, wb));
+	}
+
+	r = (r * m + 127) / 255;
+	g = (g * m + 127) / 255;
+	b = (b * m + 127) / 255;
+
+	return fl_rgb_color(r, g, b);
+}
+#define DARKEN_HTML() g_cfg.bDarkHTMLColors
+
+
+#define TOGBTN_DN_CLR		fl_themed_rgb_color(207,227,227)
 #define HTML_POPUP_BOX		FL_FREE_BOXTYPE
 #define COMPLETION_LIST_BOX	((Fl_Boxtype)(FL_FREE_BOXTYPE+1))
 #define FLAT_MARGIN_BOX		((Fl_Boxtype)(FL_FREE_BOXTYPE+2))
@@ -199,8 +221,6 @@ int strncasecmp_utf_b(const char *s1, const char *s2, int n)
 	}
 	return 0;
 }
-
-#define DARK() g_cfg.bDarkColors
 
 
 enum
@@ -339,10 +359,6 @@ static void InvokeAddTagFilter(const char *tag);
 
 #include "fl_mainwnd.h"
 #include "fl_taged.h"
-
-static unsigned int dark_cmap[75] = {
-#include "dark_cmap.h"
-};
 
 // DoImportBatchFmIniDialog mode flags
 enum ImportMode
@@ -520,6 +536,7 @@ static const char *g_DateFmt[DATEFMT_NUM_FORMATS] =
 };
 
 #define MAX_WIDGET_SCHEMES 8
+#define MAX_WIDGET_COLORS 32
 
 
 struct FMSelConfig
@@ -554,7 +571,8 @@ struct FMSelConfig
 	int returnAfterGame[2];
 
 	int uitheme;
-	BOOL bDarkColors;
+	int uicolors;
+	BOOL bDarkHTMLColors;
 	BOOL bLargeFont;
 
 	// do differential backups (ie. backup all files that have been added or modified instead of only savegames and shots)
@@ -635,7 +653,8 @@ public:
 		returnAfterGame[0] = RET_NEVER;
 		returnAfterGame[1] = RET_NEVER;
 		uitheme = 0;
-		bDarkColors = FALSE;
+		uicolors = 0;
+		bDarkHTMLColors = FALSE;
 		bLargeFont = FALSE;
 		bDiffBackups = FALSE;
 		bReviewDiffBackup = FALSE;
@@ -923,7 +942,8 @@ public:
 				fprintf(f, "FilterTags%s=%s\n", FilterOpNames[i], str.c_str());
 			}
 		if (uitheme) fprintf(f, "Theme=%d\n", uitheme);
-		if (bDarkColors) fprintf(f, "DarkColors=%d\n", bDarkColors);
+		if (uicolors) fprintf(f, "Colors=%d\n", uicolors);
+		if (bDarkHTMLColors) fprintf(f, "DarkHTMLColors=%d\n", bDarkHTMLColors);
 		if (bLargeFont) fprintf(f, "FontSize=%d\n", bLargeFont);
 		if (bDiffBackups) fprintf(f, "BackupType=%d\n", !!bDiffBackups);
 		if (bReviewDiffBackup) fprintf(f, "ReviewDiffBackup=%d\n", bReviewDiffBackup);
@@ -1073,8 +1093,10 @@ public:
 		}
 		else if ( !_stricmp(valname, "Theme") )
 			uitheme = atoi(val);
-		else if ( !_stricmp(valname, "DarkColors") )
-			bDarkColors = !!atoi(val);
+		else if ( !_stricmp(valname, "Colors") )
+			uicolors = atoi(val);
+		else if ( !_stricmp(valname, "DarkHTMLColors") )
+			bDarkHTMLColors = !!atoi(val);
 		else if ( !_stricmp(valname, "FontSize") )
 			bLargeFont = !!atoi(val);
 		else if ( !_stricmp(valname, "BackupType") )
@@ -3395,59 +3417,6 @@ static void CleanDirSlashes(char *s)
 			*s = DIRSEP;
 }
 
-static void RegDefColors()
-{
-	// register custom colors
-	unsigned int c = 96;
-#define REGCLR(_r,_g,_b) Fl::set_color((Fl_Color)c++,_r,_g,_b);
-	REGCLR(207,227,227);
-	REGCLR(180,180,200);
-	REGCLR(245,245,255);
-	REGCLR(192,239,250);
-	REGCLR(232,232,240);
-	REGCLR(240,240,240);
-	REGCLR(206,238,250);
-	REGCLR(219,219,225);
-	REGCLR(225,225,225);
-	REGCLR(70,70,250);
-	REGCLR(243,135,75);
-	REGCLR(255,92,3);
-	REGCLR(220,220,220);
-	REGCLR(50,90,200);
-	REGCLR(30,50,80);
-	REGCLR(150,185,220);
-	REGCLR(60,120,180);
-	REGCLR(145,200,245);
-	REGCLR(130,170,200);
-	REGCLR(105,135,160);
-	REGCLR(95,95,100);
-	REGCLR(205,220,205);
-	REGCLR(220,205,205);
-	REGCLR(205,210,220);
-	REGCLR(240,240,230);
-	REGCLR(100,170,225);
-	REGCLR(210,210,210);
-	REGCLR(230,230,230);
-	REGCLR(226,226,217);
-	REGCLR(170,238,255);
-#undef REGCLR
-}
-
-static void SwapColorScheme()
-{
-	// swap the necessary parts of the color map
-	unsigned c, i = 0;
-#define SWPCLR(_x,_y) { unsigned int color = Fl::get_color((Fl_Color)_x); Fl::set_color((Fl_Color)_x,dark_cmap[_y]); dark_cmap[_y++] = color; }
-	for (c = FL_FOREGROUND_COLOR; c < FL_FOREGROUND_COLOR+16; c++) SWPCLR(c,i); // 3-bit colormap
-	for (c = FL_GRAY0; c <= FL_BLACK; c++) { SWPCLR(c,i); } // grayscale ramp and FL_BLACK
-	SWPCLR(FL_RED,i); // FL_RED
-	for (c = USER_CLR; c < USER_CLR+30; c++) { SWPCLR(c,i); } // custom colors
-	SWPCLR(215,i); // Tooltip background
-	SWPCLR(FL_BLUE,i); // FL_BLUE
-	SWPCLR(FL_WHITE,i); // FL_WHITE
-#undef SWPCLR
-}
-
 
 // generate a temp filename from a filename and make sure no file already exists
 // usable temp filename is returned in 'tmpfile'
@@ -5289,7 +5258,7 @@ static BOOL BackupDiffSet(FMEntry *fm)
 		}
 
 		html.append("<br><br><b><a href=\"/cmd/accept\" color=\"");
-		html.append(DARK() ? "#009A4F\">" : "#36DB8B\">");
+		html.append(DARKEN_HTML() ? "#009A4F\">" : "#36DB8B\">");
 		html.append($("Continue with Backup"));
 		html.append("</a></b>");
 
@@ -6367,7 +6336,7 @@ static void ListArchiveFiles(const char *archive, string &html)
 		char s[64];
 		FormatFileSizeValue(s, sz);
 
-		_snprintf_s(buf, sizeof(buf), _TRUNCATE, "<br><b><font color=\"%s\">%s: </font>%s </b>(%d %s)", DARK() ? "#4A86AF" : "#87C5F0",
+		_snprintf_s(buf, sizeof(buf), _TRUNCATE, "<br><b><font color=\"%s\">%s: </font>%s </b>(%d %s)", DARKEN_HTML() ? "#4A86AF" : "#87C5F0",
 			$("Estimated install size"), s, filecount, $("files"));
 		html.append(buf);
 	}
@@ -6741,7 +6710,9 @@ public:
 
 			CMD_WidgetScheme0,
 			CMD_WidgetSchemeLast = CMD_WidgetScheme0+MAX_WIDGET_SCHEMES-1,
-			CMD_ColorScheme,
+			CMD_WidgetColors0,
+			CMD_WidgetColorsLast = CMD_WidgetColors0+MAX_WIDGET_COLORS-1,
+			CMD_DarkenHTML,
 
 			CMD_FontSizeNormal,
 			CMD_FontSizeLarge,
@@ -6784,7 +6755,7 @@ public:
 
 		#define MENU_DATEFMT(_n) MENU_RITEM(dateformats[_n], CMD_DateFmt0+(_n), g_cfg.datefmt == (_n))
 
-		int i;
+		int i, j;
 		char dateformats[DATEFMT_NUM_FORMATS][64];
 		time_t t;
 		time(&t);
@@ -6816,8 +6787,14 @@ public:
 		MENU_SUB($("UI Theme"));
 			for (i=0; i<Fl_Scheme::num_schemes() && i<MAX_WIDGET_SCHEMES; i++)
 				MENU_RITEM(Fl_Scheme::names()[i], CMD_WidgetScheme0+i, g_cfg.uitheme == i);
+			for (j=i,i=0; i<fle_num_schemes() && i<MAX_WIDGET_SCHEMES; i++,j++)
+				MENU_RITEM(fle_scheme_name(i), CMD_WidgetScheme0+j, g_cfg.uitheme == j);
+			MENU_END();
+		MENU_SUB($("UI Colors"));
+			for (i=0; i<fle_num_colors() && i<MAX_WIDGET_COLORS; i++)
+				MENU_RITEM(fle_colors_name(i), CMD_WidgetColors0+i, g_cfg.uicolors == i);
 			MENU_MOD_DIV();
-			MENU_TITEM($("Dark Colors"), CMD_ColorScheme, g_cfg.bDarkColors);
+			MENU_TITEM($("Darken HTML"), CMD_DarkenHTML, g_cfg.bDarkHTMLColors);
 			MENU_END();
 		MENU_SUB($("UI Font Size"));
 			MENU_RITEM($("Normal"), CMD_FontSizeNormal, g_cfg.bLargeFont == 0);
@@ -6899,11 +6876,9 @@ public:
 			RefreshListControlRowSize();
 			break;
 
-		case CMD_ColorScheme:
-			g_cfg.bDarkColors = !g_cfg.bDarkColors;
+		case CMD_DarkenHTML:
+			g_cfg.bDarkHTMLColors = !g_cfg.bDarkHTMLColors;
 			g_cfg.OnModified();
-			SwapColorScheme();
-			pMainWnd->redraw();
 			break;
 
 		case CMD_FontSizeNormal:
@@ -7030,7 +7005,31 @@ public:
 				g_cfg.uitheme = cmd_id-CMD_WidgetScheme0;
 				g_cfg.OnModified();
 				if (g_cfg.uitheme >= 0 && g_cfg.uitheme < Fl_Scheme::num_schemes())
+				{
 					Fl::scheme(Fl_Scheme::names()[g_cfg.uitheme]);
+
+					pMainWnd->redraw();
+				}
+				else
+				{
+					int i = g_cfg.uitheme - Fl_Scheme::num_schemes();
+					if (i >= 0 && i < fle_num_schemes())
+					{
+						fle_set_scheme(fle_scheme_name(i));
+
+						pMainWnd->redraw();
+					}
+				}
+			}
+			else if (cmd_id >= CMD_WidgetColors0 && cmd_id <= CMD_WidgetColorsLast)
+			{
+				fl_message_position(pMainWnd);
+				if ( fl_choice($("Restart is required to change color scheme. Change colors and exit?"), fl_cancel, fl_ok, NULL) )
+				{
+					g_cfg.uicolors = cmd_id-CMD_WidgetColors0;
+					g_cfg.OnModified();
+					OnExit(NULL, NULL);
+				}
 			}
 		}
 	}
@@ -8358,7 +8357,7 @@ void Fl_FM_List::draw_cell(TableContext context, int R, int C, int X, int Y, int
 
 	case CONTEXT_COL_HEADER:
 		fl_push_clip(X, Y, W, H);
-		fl_draw_box(FL_THIN_UP_BOX, X, Y, W, H, Fl::focus()==this ? (Fl_Color)(USER_CLR+1) : (Fl_Color)(FL_GRAY0+18));
+		fl_draw_box(FL_THIN_UP_BOX, X, Y, W, H, Fl::focus()==this ? fl_themed_rgb_color(180,180,200) : fl_themed_rgb_color(203,203,203));
 		if (C < COL_NUM_COLS)
 		{
 			C = s_column_idx[C];
@@ -8390,7 +8389,7 @@ draw_sortarrow:
 				int lw = 0, lh = 0;
 				fl_measure(label, lw, lh);
 				XX += lw+2;
-				fl_color(FL_GRAY0+8);
+				fl_color( fl_themed_rgb_color(95,95,95) );
 				if (g_cfg.sortmode >= 0)
 				{
 					// down
@@ -8415,11 +8414,11 @@ draw_sortarrow:
 		{
 			// bg
 			if ( fm->IsInstalled() )
-				fl_color(row_selected(R) ? selection_color() : ((R & 1) ? (Fl_Color)(USER_CLR+2) : FL_BACKGROUND2_COLOR));
+				fl_color(row_selected(R) ? selection_color() : ((R & 1) ? fl_themed_rgb_color(245,245,255) : FL_WHITE));
 			else if ( fm->IsAvail() )
-				fl_color(row_selected(R) ? (Fl_Color)(USER_CLR+3) : ((R & 1) ? (Fl_Color)(USER_CLR+4) : (Fl_Color)(USER_CLR+5)));
+				fl_color(row_selected(R) ? fl_themed_rgb_color(192,239,250) : ((R & 1) ? fl_themed_rgb_color(232,232,240) : fl_themed_rgb_color(240,240,240)));
 			else
-				fl_color(row_selected(R) ? (Fl_Color)(USER_CLR+6) : ((R & 1) ? (Fl_Color)(USER_CLR+7) : (Fl_Color)(USER_CLR+8)));
+				fl_color(row_selected(R) ? fl_themed_rgb_color(206,238,250) : ((R & 1) ? fl_themed_rgb_color(219,219,225) : fl_themed_rgb_color(225,225,225)));
 			fl_rectf(X, Y, W, H);
 
 			if (fm)
@@ -8454,7 +8453,7 @@ draw_sortarrow:
 						{
 							if (fm->status == FMEntry::STATUS_NotPlayed)
 							{
-								fl_color((Fl_Color)(USER_CLR+9));
+								fl_color( fl_themed_rgb_color(70,70,250) );
 								if (fm->tmLastStarted)
 									fl_font(FL_HELVETICA_ITALIC, m_fontsize);
 								else
@@ -8462,7 +8461,7 @@ draw_sortarrow:
 							}
 							else if (fm->status == FMEntry::STATUS_InProgress)
 							{
-								fl_color((Fl_Color)(USER_CLR+10));
+								fl_color( fl_themed_rgb_color(243,135,75) );
 								fl_font(FL_HELVETICA_BOLD_ITALIC, m_fontsize);
 							}
 							else
@@ -8473,7 +8472,7 @@ draw_sortarrow:
 						}
 						else
 						{
-							fl_color(FL_GRAY0+7);
+							fl_color( fl_themed_rgb_color(83,83,83) );
 							fl_font(FL_HELVETICA_ITALIC, m_fontsize);
 						}
 
@@ -8502,7 +8501,7 @@ draw_sortarrow:
 						}
 						else if (fm->status == FMEntry::STATUS_InProgress)
 						{
-							fl_color((Fl_Color)(USER_CLR+11));
+							fl_color( fl_themed_rgb_color(255,92,3) );
 							fl_font(FL_HELVETICA_BOLD, m_fontsize);
 						}
 						else
@@ -8522,9 +8521,9 @@ draw_sortarrow:
 						int HH = H-m_tagY-2;
 
 						fl_font(FL_HELVETICA, m_tagfontsize);
-						fl_color(FL_GRAY0+16);
+						fl_color( fl_themed_rgb_color(181,181,181) );
 						fl_draw(TAGS_LABEL, XX+1, YY, WW, HH, (Fl_Align)(m_tagalign|FL_ALIGN_CLIP|FL_ALIGN_WRAP));
-						fl_color(FL_GRAY0+7);
+						fl_color( fl_themed_rgb_color(83,83,83) );
 						fl_draw(fm->tagsUI.c_str(), XX, YY, WW, HH, (Fl_Align)(m_tagalign|FL_ALIGN_CLIP|FL_ALIGN_WRAP));
 					}
 					}
@@ -8598,7 +8597,7 @@ draw_sortarrow:
 						if (fm->flags & FMEntry::FLAG_UnverifiedRelDate)
 						{
 							fl_font(FL_HELVETICA_ITALIC, m_fontsize);
-							fl_color(FL_GRAY0+10);
+							fl_color( fl_themed_rgb_color(117,117,117) );
 						}
 						else
 						{
@@ -8631,7 +8630,7 @@ draw_sortarrow:
 			//fl_rect(X, Y, W, H);
 			fl_xyline(X, Y+H-1, X+W-1);
 
-			fl_color((Fl_Color)(USER_CLR+12));
+			fl_color( fl_themed_rgb_color(220,220,220) );
 			fl_line_style(FL_DOT);
 			fl_yxline(X+W-1, Y, Y+H-1);
 			fl_line_style(FL_SOLID);
@@ -8817,7 +8816,7 @@ protected:
 
 public:
 	Fl_Link_Button(int X, int Y, const char *l,
-		Fl_Color clr = (Fl_Color)(USER_CLR+13), Fl_Color hoverclr = (Fl_Color)(USER_CLR+14),
+		Fl_Color clr = fl_themed_rgb_color(50,90,200), Fl_Color hoverclr = fl_themed_rgb_color(30,50,80),
 		Fl_Font font = FL_HELVETICA_BOLD, int fontsize = FL_NORMAL_SIZE)
 		: Fl_Button(X,Y,1,1,l)
 	{
@@ -8846,7 +8845,7 @@ class Fl_AddTagFilter_Button : public Fl_Link_Button
 
 public:
 	Fl_AddTagFilter_Button(int X, int Y, BOOL bNoFilter = FALSE)
-		: Fl_Link_Button(X,Y,NULL,(Fl_Color)(USER_CLR+13),(Fl_Color)(USER_CLR+14),FL_HELVETICA_BOLD,FL_NORMAL_SIZE)
+		: Fl_Link_Button(X,Y,NULL,fl_themed_rgb_color(50,90,200),fl_themed_rgb_color(30,50,80),FL_HELVETICA_BOLD,FL_NORMAL_SIZE)
 	{
 		m_label = bNoFilter ? $("Add Tag") : $("Add Tag Filter");
 
@@ -8955,7 +8954,7 @@ protected:
 		fl_color(FL_FOREGROUND_COLOR);
 		fl_rect(x, y, w, h);
 		//fl_color( fl_rgb_color(130,120,115) );
-		fl_color((Fl_Color)(USER_CLR+15));
+		fl_color( fl_themed_rgb_color(150,185,220) );
 		fl_rectf(x+1, y+1, w-2, 3);
 		fl_rectf(x+1, y+4, 3, h-8);
 		fl_rectf(x+w-4, y+4, 3, h-8);
@@ -9037,12 +9036,12 @@ public:
 
 		o->user_data2(&w);
 		o->box(HTML_POPUP_BOX);
-		o->color((Fl_Color)(USER_CLR+16));
+		o->color( fl_themed_rgb_color(60,120,180) );
 		//o->textfont(FL_HELVETICA_BOLD);
 		o->textfont(FL_HELVETICA);
 		o->textsize(FL_NORMAL_SIZE);
 		//o->textcolor( fl_rgb_color(200,230,250) );
-		o->textcolor(DARK() ? (Fl_Color)FL_GRAY0 : (Fl_Color)(USER_CLR+12));
+		o->textcolor( fl_themed_rgb_color(220,220,220) );
 		o->link(link_cb);
 		o->include_anchor_to_cb();
 
@@ -9102,11 +9101,11 @@ protected:
 		// X button
 		const int X = x()+w()-XBUTTON_WIDTH;
 		const BOOL bMouseOverX = m_bHilightedX = (Fl::belowmouse() == this && Fl::event_x() >= X);
-		fl_color(bMouseOverX ? (Fl_Color)(USER_CLR+17) : (Fl_Color)(USER_CLR+18));
+		fl_color(bMouseOverX ? fl_themed_rgb_color(145,200,245) : fl_themed_rgb_color(130,170,200));
 		fl_rectf(X, y()+1, XBUTTON_WIDTH, h()-2);
 		imgTagX.draw(X+4, y()+4);
 
-		fl_color(bFocus ? FL_FOREGROUND_COLOR : (Fl_Color)(USER_CLR+19));
+		fl_color(bFocus ? FL_FOREGROUND_COLOR : fl_themed_rgb_color(105,135,160));
 		fl_xyline(x()+1, y(), x()+w()-2);
 		fl_xyline(x()+1, y()+h()-1, x()+w()-2);
 		fl_yxline(x(), y()+1, y()+h()-2);
@@ -9125,7 +9124,7 @@ protected:
 
 		if ( !m_category.empty() )
 		{
-			fl_color((Fl_Color)(USER_CLR+20));
+			fl_color( fl_themed_rgb_color(95,95,100) );
 			fl_draw(m_category.c_str(),
 				x()+LABEL_MARGIN_LEFT, y()+2,
 				w()-XBUTTON_WIDTH-(LABEL_MARGIN_LEFT+LABEL_MARGIN_RIGHT), h()-4,
@@ -9197,10 +9196,10 @@ public:
 		box(FL_FLAT_BOX);
 		switch (op)
 		{
-		case FOP_AND: color((Fl_Color)(USER_CLR+21)); break;
-		case FOP_NOT: color((Fl_Color)(USER_CLR+22)); break;
+		case FOP_AND: color( fl_themed_rgb_color(205,220,205) ); break;
+		case FOP_NOT: color( fl_themed_rgb_color(220,205,205) ); break;
 		default:
-			color((Fl_Color)(USER_CLR+23));
+			color( fl_themed_rgb_color(205,210,220) );
 		}
 		labelfont(FL_HELVETICA);
 		labelsize(FL_NORMAL_SIZE);
@@ -9522,16 +9521,16 @@ public:
 		if (!m_bTagEdit)
 		{
 			headerstr = "<html><body bgcolor=\"";
-			headerstr.append(DARK() ? "#003E75\" link=\"#89A6B9\">" : "#3C78B4\" link=\"#C8E6FA\">");
+			headerstr.append(DARKEN_HTML() ? "#003E75\" link=\"#89A6B9\">" : "#3C78B4\" link=\"#C8E6FA\">");
 			headerstr.append(
 				"<table width=\"98%%\"><tr>"
 				"<td width=\"20%%\"><font size=\"2.7\" color=\"");
-			headerstr.append(DARK() ? "#000019" : "#18426C");
+			headerstr.append(DARKEN_HTML() ? "#000019" : "#18426C");
 			headerstr.append(
 				"\"><b>&lt;" $mid("SHIFT") "&gt; :</b> " $mid("AND filter") "</font></td>"
 				"<td width=\"2%%\"></td>"
 				"<td width=\"20%%\"><font size=\"2.7\" color=\"");
-			headerstr.append(DARK() ? "#000019" : "#18426C");
+			headerstr.append(DARKEN_HTML() ? "#000019" : "#18426C");
 			headerstr.append(
 				"\"><b>&lt;" $mid("ALT") "&gt; :</b> " $mid("NOT filter") "</font></td>"
 				"<td width=\"57%%\" align=\"right\"><b>%s</b></td>"
@@ -9541,7 +9540,7 @@ public:
 		else
 		{
 			headerstr = "<html><body bgcolor=\"";
-			headerstr.append(DARK() ? "#003E75\" link=\"#89A6B9" : "#3C78B4\" link=\"#C8E6FA");
+			headerstr.append(DARKEN_HTML() ? "#003E75\" link=\"#89A6B9" : "#3C78B4\" link=\"#C8E6FA");
 			headerstr.append(
 				"\">"
 			"<table width=\"98%%\"><tr>"
@@ -9569,18 +9568,18 @@ public:
 		if (!m_bTagEdit)
 		{
 			if ( g_cfg.HasTagFilters() )
-				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<a color=\"%s\" href=\"/*\">%s</a>", DARK() ? "#948700" : "#D2C62A", $("Reset Tag Filters"));
+				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<a color=\"%s\" href=\"/*\">%s</a>", DARKEN_HTML() ? "#948700" : "#D2C62A", $("Reset Tag Filters"));
 			else
-				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<font color=\"%s\">%s</font>", DARK() ? "#25629C" : "#629FDD", $("Reset Tag Filters"));
+				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<font color=\"%s\">%s</font>", DARKEN_HTML() ? "#25629C" : "#629FDD", $("Reset Tag Filters"));
 
 			_snprintf_s(buff, sizeof(buff), _TRUNCATE, header, buff2);
 		}
 		else
 		{
 			if ( HasTags() )
-				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<a color=\"%s\" href=\"/*\">%s</a>", DARK() ? "#948700" : "#D2C62A" , $("Remove All Tags"));
+				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<a color=\"%s\" href=\"/*\">%s</a>", DARKEN_HTML() ? "#948700" : "#D2C62A" , $("Remove All Tags"));
 			else
-				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<font color=\"%s\">%s</font>", DARK() ? "#25629C" : "#629FDD", $("Remove All Tags"));
+				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<font color=\"%s\">%s</font>", DARKEN_HTML() ? "#25629C" : "#629FDD", $("Remove All Tags"));
 
 			_snprintf_s(buff, sizeof(buff), _TRUNCATE, header, buff2);
 		}
@@ -9610,14 +9609,14 @@ public:
 			if (!cat_is_filtered)
 			{
 				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<b><font color=\"%s\">%s:</font> <a href=\"/%s:*\">%s</a></b> (%d)",
-					DARK() ? GROUP_LABEL_CLR_DARK : GROUP_LABEL_CLR, sCategory, buff, $tag(buff), cat_fm_count);
+					DARKEN_HTML() ? GROUP_LABEL_CLR_DARK : GROUP_LABEL_CLR, sCategory, buff, $tag(buff), cat_fm_count);
 			}
 			else
 			{
 				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<b><font color=\"%s\">%s:</font> </b><font color=\"%s\"><b>%s</b> (%d)</font>",
-					DARK() ? GROUP_LABEL_CLR_DARK : GROUP_LABEL_CLR, sCategory, DARK() ? CAT_ADDED_CLR_DARK : CAT_ADDED_CLR, $tag(buff), cat_fm_count);
+					DARKEN_HTML() ? GROUP_LABEL_CLR_DARK : GROUP_LABEL_CLR, sCategory, DARKEN_HTML() ? CAT_ADDED_CLR_DARK : CAT_ADDED_CLR, $tag(buff), cat_fm_count);
 			}
-			_snprintf_s(buff, sizeof(buff), _TRUNCATE, table_header, DARK() ? "#035493" : "#4C90D4" , buff2);
+			_snprintf_s(buff, sizeof(buff), _TRUNCATE, table_header, DARKEN_HTML() ? "#035493" : "#4C90D4" , buff2);
 			html.append(buff);
 
 			// count number of tags in current category
@@ -9640,7 +9639,7 @@ public:
 					else
 					{
 						_snprintf_s(buff, sizeof(buff), _TRUNCATE, "<font color=\"%s\"><b>%s</b> (%d)<font><br>",
-							DARK() ? TAG_ADDED_CLR_DARK : TAG_ADDED_CLR, $tag(g_tagNameList[i]+cat_len), g_dbTagCountHash[KEY(g_tagNameList[i])]);
+							DARKEN_HTML() ? TAG_ADDED_CLR_DARK : TAG_ADDED_CLR, $tag(g_tagNameList[i]+cat_len), g_dbTagCountHash[KEY(g_tagNameList[i])]);
 					}
 
 					html.append(buff);
@@ -9656,8 +9655,8 @@ public:
 		{
 			const int ROWS = (g_tagNameListNoCat.size() + (COLS-1)) / COLS;
 
-			_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<b><font color=\"%s\">%s</font></b>", DARK() ? GROUP_LABEL_CLR_DARK : GROUP_LABEL_CLR, $("Misc Tags"));
-			_snprintf_s(buff, sizeof(buff), _TRUNCATE, table_header, DARK() ? "#035493" : "#4C90D4" , buff2);
+			_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, "<b><font color=\"%s\">%s</font></b>", DARKEN_HTML() ? GROUP_LABEL_CLR_DARK : GROUP_LABEL_CLR, $("Misc Tags"));
+			_snprintf_s(buff, sizeof(buff), _TRUNCATE, table_header, DARKEN_HTML() ? "#035493" : "#4C90D4" , buff2);
 			html.append(buff);
 
 			i = 0;
@@ -9674,7 +9673,7 @@ public:
 					else
 					{
 						_snprintf_s(buff, sizeof(buff), _TRUNCATE, "<font color=\"%s\"><b>%s</b> (%d)</font><br>",
-							DARK() ? TAG_ADDED_CLR_DARK : TAG_ADDED_CLR, $tag(g_tagNameListNoCat[i]), g_dbTagCountHash[KEY(g_tagNameListNoCat[i])]);
+							DARKEN_HTML() ? TAG_ADDED_CLR_DARK : TAG_ADDED_CLR, $tag(g_tagNameListNoCat[i]), g_dbTagCountHash[KEY(g_tagNameListNoCat[i])]);
 					}
 
 					html.append(buff);
@@ -9690,7 +9689,7 @@ public:
 			string notags =
 			"<br><br><table width=\"98%\"><tr>"
 				"<td width=\"99%\" align=\"left\"><font color=\"";
-			notags.append(DARK() ? "#BEBEBE" : "#FFFFFF");
+			notags.append(DARKEN_HTML() ? "#BEBEBE" : "#FFFFFF");
 			notags.append(
 				"\"><b>" $mid("No tags defined") ".</b></font></td>"
 				"<td width=\"1%\"></td>"
@@ -10028,11 +10027,11 @@ public:
 
 		o->user_data2(&w);
 		o->box(HTML_POPUP_BOX);
-		o->color((Fl_Color)(USER_CLR+16));
+		o->color( fl_themed_rgb_color(60,120,180) );
 		//o->textfont(FL_HELVETICA_BOLD);
 		o->textfont(FL_HELVETICA);
 		o->textsize(FL_NORMAL_SIZE);
-		o->textcolor(DARK() ? FL_GRAY0 : FL_BACKGROUND2_COLOR);
+		o->textcolor(DARKEN_HTML() ? fl_rgb_color(180, 180, 180) : fl_rgb_color(255,255,255));
 		o->link(link_cb2);
 		o->image_callback(native_image_cb);
 		o->include_anchor_to_cb();
@@ -10236,7 +10235,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 	const char *footer =
 		"</body></html>";
 
-	if (DARK())
+	if (DARKEN_HTML())
 		_snprintf_s(buff, sizeof(buff), _TRUNCATE, preheader, "#003E75", LINK_CLR_DARK);
 	else
 		_snprintf_s(buff, sizeof(buff), _TRUNCATE, preheader, "#3C78B4", LINK_CLR);
@@ -10255,14 +10254,14 @@ static string GenerateHtmlSummary(FMEntry *fm)
 	const BOOL hasprev = (curindex > 0);
 	const BOOL hasnext = (curindex < (int)g_dbFiltered.size()-1);
 
-	if (DARK())
+	if (DARKEN_HTML())
 		_snprintf_s(buff, sizeof(buff), _TRUNCATE, pager, hasprev ? CAT_LABEL_CLR_DARK : "#035493", "#035493", hasnext ? CAT_LABEL_CLR_DARK : "#035493");
 	else
 		_snprintf_s(buff, sizeof(buff), _TRUNCATE, pager, hasprev ? CAT_LABEL_CLR : "#4C90D4", "#4C90D4", hasnext ? CAT_LABEL_CLR : "#4C90D4");
 	html.append(buff);
 #endif
 
-	_snprintf_s(buff, sizeof(buff), _TRUNCATE, header, DARK() ? "#035493" : "#4C90D4", DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR, fm->GetFriendlyName(), $("Close"));
+	_snprintf_s(buff, sizeof(buff), _TRUNCATE, header, DARKEN_HTML() ? "#035493" : "#4C90D4", DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR, fm->GetFriendlyName(), $("Close"));
 	html.append(buff);
 
 	html.append("<table width=\"98%\"><tr><td>");
@@ -10298,7 +10297,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 	if (fm->tmReleaseDate)
 	{
 		html.append("<font color=\"");
-		html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+		html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 		html.append("\"><u><b>");
 		html.append($("Release Date"));
 		html.append(":</b></u></font> ");
@@ -10313,7 +10312,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 	if (fm->rating >= 0)
 	{
 		html.append("<font color=\"");
-		html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+		html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 		html.append("\"><u><b>");
 		html.append($("Rating"));
 		html.append(":</b></u></font> ");
@@ -10350,7 +10349,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 				_snprintf_s(buff2, sizeof(buff2), _TRUNCATE, " (<u>%s</u>: %s)", $("On"), TextToHtml(date).c_str());
 		}
 
-		_snprintf_s(buff, sizeof(buff), _TRUNCATE, c, $("Completed"), DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR,
+		_snprintf_s(buff, sizeof(buff), _TRUNCATE, c, $("Completed"), DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR,
 			fm->nCompleteCount, fm->nCompleteCount>1 ? $("times") : $("time"), buff2);
 		html.append(buff);
 
@@ -10363,7 +10362,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 	if (fm->tmLastStarted)
 	{
 		html.append("<font color=\"");
-		html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+		html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 		html.append("\"><u><b>");
 		html.append($("Last Played"));
 		html.append(":</b></u></font> ");
@@ -10392,7 +10391,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 			if ( !fm->infofile.empty() )
 			{
 				html.append("<font color=\"");
-				html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+				html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 				html.append("\"><u><b>");
 				html.append($("Info Files"));
 				html.append(":</b></u></font> <a href=\"/info/\"><b>");
@@ -10402,7 +10401,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 			else
 			{
 				html.append("<font color=\"");
-				html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+				html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 				html.append("\"><u><b>");
 				html.append($("Info Files"));
 				html.append(": ");
@@ -10421,7 +10420,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 		else
 		{
 			html.append("<font color=\"");
-			html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+			html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 			html.append("\"><u><b>");
 			html.append($("Info File"));
 			html.append(":</b></u></font> <a href=\"/info/\"><b>");
@@ -10432,7 +10431,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 		html.append("<br><br>");
 	}
 
-	const char *section_header = DARK() ? "</td></tr><tr bgcolor=\"#044679\"><td>" : "</td></tr><tr bgcolor=\"#4780B8\"><td>";
+	const char *section_header = DARKEN_HTML() ? "</td></tr><tr bgcolor=\"#044679\"><td>" : "</td></tr><tr bgcolor=\"#4780B8\"><td>";
 
 	const char *section_footer =
 		"</td></tr>"
@@ -10453,7 +10452,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 		html.append(section_header);
 
 		html.append("<font color=\"");
-		html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+		html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 		html.append("\"><u><b>");
 		html.append($("Description"));
 		html.append(":</b></u></font><br>");
@@ -10475,7 +10474,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 		html.append(section_header);
 
 		html.append("<font color=\"");
-		html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+		html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 		html.append("\"><u><b>");
 		html.append($("Tags"));
 		html.append(":</b></u></font><br>");
@@ -10521,7 +10520,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 		html.append(section_header);
 
 		html.append("<font color=\"");
-		html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+		html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 		html.append("\"><u><b>");
 		html.append($("Notes"));
 		html.append(":</b></u></font><br>");
@@ -10536,7 +10535,7 @@ static string GenerateHtmlSummary(FMEntry *fm)
 	html.append("</td></tr></table>");
 
 	html.append("<table width=\"98%\"><tr bgcolor=\"");
-	html.append(DARK() ? "#035493" : "#4C90D4");
+	html.append(DARKEN_HTML() ? "#035493" : "#4C90D4");
 	html.append(
 		"\"><td></td>"
 		"</tr></table><br>"
@@ -10633,7 +10632,7 @@ static const char* GenericHtmlTextPopupFull(const char *caption, const char *htm
 		"</tr></table><br>"
 		"</body></html>";
 
-	if (DARK())
+	if (DARKEN_HTML())
 		_snprintf_s(buff, sizeof(buff), _TRUNCATE, header_part1, "#003E75", LINK_CLR_DARK, "#035493", "#BEBEBE");
 	else
 		_snprintf_s(buff, sizeof(buff), _TRUNCATE, header_part1, "#3C78B4", LINK_CLR, "#4C90D4", "#FFFFFF");
@@ -10643,7 +10642,7 @@ static const char* GenericHtmlTextPopupFull(const char *caption, const char *htm
 
 	html.append(html_body);
 
-	_snprintf_s(buff, sizeof(buff), _TRUNCATE, footer, DARK() ? "#035493" : "#4C90D4");
+	_snprintf_s(buff, sizeof(buff), _TRUNCATE, footer, DARKEN_HTML() ? "#035493" : "#4C90D4");
 	html.append(buff);
 
 	return Fl_FM_Descr_Popup::popup(pMainWnd, W, H, html.c_str());
@@ -10655,7 +10654,7 @@ static void ViewAbout()
 	string html;
 
 	html.append("<h1><font color=\"");
-	html.append(DARK() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
+	html.append(DARKEN_HTML() ? CAT_LABEL_CLR_DARK : CAT_LABEL_CLR);
 	html.append("\">FMSel " FMSEL_VERSION "</font></h1><br>");
 
 	// about text doesn't (only supports localization of vital information)
@@ -10709,8 +10708,8 @@ static void ViewAbout()
 #else
 		, $("FM selector and manager for dark engine games.")
 #endif
-		, DARK() ? "#376189" : "#719DC8"
-		, DARK() ? "#035493" : "#4C90D4"
+		, DARKEN_HTML() ? "#376189" : "#719DC8"
+		, DARKEN_HTML() ? "#035493" : "#4C90D4"
 		, FL_MAJOR_VERSION, FL_MINOR_VERSION, FL_PATCH_VERSION
 #ifdef AUDIO_SUPPORT
 		, GetWavVersion()
@@ -11295,8 +11294,8 @@ void InitProgress(int nSteps, const char *label)
 	Fl_Progress *o = g_pProgressBar = new Fl_Progress(10, 10, w->w()-20, w->h()-20, label);
 	o->labelfont(FL_HELVETICA_BOLD);
 	o->labelsize(FL_NORMAL_SIZE);
-	o->color((Fl_Color)(USER_CLR+24));
-	o->color2((Fl_Color)(USER_CLR+25));
+	o->color( fl_themed_rgb_color(240,240,230) );
+	o->color2( fl_themed_rgb_color(100,170,225) );
 
 	w->end();
 
@@ -13012,9 +13011,9 @@ static void draw_flatmarginbox(int x, int y, int w, int h, Fl_Color c)
 {
 	fl_color(c);
 	fl_rectf(x+3, y+3, w-6, h-6);
-	fl_color((Fl_Color)(USER_CLR+26));
+	fl_color( fl_themed_rgb_color(210,210,210) );
 	fl_rect(x, y, w, h);
-	fl_color((Fl_Color)(USER_CLR+27));
+	fl_color( fl_themed_rgb_color(230,230,230) );
 	fl_rect(x+1, y+1, w-2, h-2);
 	fl_rect(x+2, y+2, w-4, h-4);
 }
@@ -13090,12 +13089,16 @@ static void InitFLTK()
 
 	fl_register_jpeg();
 
-	RegDefColors();
-
-	if (g_cfg.bDarkColors)
-		SwapColorScheme();
+	if (g_cfg.uicolors >= 0 && g_cfg.uicolors < fle_num_colors())
+		fle_set_colors(fle_colors_name(g_cfg.uicolors));
 	if (g_cfg.uitheme >= 0 && g_cfg.uitheme < Fl_Scheme::num_schemes())
 		Fl::scheme(Fl_Scheme::names()[g_cfg.uitheme]);
+	else
+	{
+		int i = g_cfg.uitheme - Fl_Scheme::num_schemes();
+		if (i >= 0 && i < fle_num_schemes())
+			fle_set_scheme(fle_scheme_name(i));
+	}
 
 	FL_NORMAL_SIZE = g_cfg.bLargeFont ? 14 : 12;
 	fl_message_font(FL_HELVETICA, FL_NORMAL_SIZE);

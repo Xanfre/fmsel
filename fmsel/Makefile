@@ -97,7 +97,9 @@ FMSEL_OBJS = $(objdir)/archive.o \
 			$(objdir)/lang.o \
 			$(objdir)/os.o
 FLTK_OBJS = $(objdir)/Fl_Table.o \
-			$(objdir)/Fl_Table_Row.o
+			$(objdir)/Fl_Table_Row.o \
+			$(objdir)/Fle_Colors.o \
+			$(objdir)/Fle_Schemes.o
 TOOL_OBJS = $(objdir)/fmsel_launch.o
 
 ifeq ($(TARGET_OS),Windows_NT)
@@ -173,7 +175,7 @@ $(objdir)/%.o: %.c
 
 $(objdir)/archive.o: archive.h os.h lang.h dbgutil.h
 $(objdir)/Fl_Html_View.o: Fl_Html_View.H flstring.h
-$(objdir)/fmsel.o: fmsel.h os.h archive.h lang.h dbgutil.h glml.h Fl_Html_View.H ./Fl_Table/Fl_Table_Row.H ./Fl_Table/Fl_Table.H mp3.h icons.h fl_mainwnd.h fl_taged.h dark_cmap.h fl_mainwnd.cpp.h fl_taged.cpp.h
+$(objdir)/fmsel.o: fmsel.h os.h archive.h lang.h dbgutil.h glml.h Fl_Html_View.H ./Fl_Table/Fl_Table_Row.H ./Fl_Table/Fl_Table.H mp3.h icons.h fl_mainwnd.h fl_taged.h fl_mainwnd.cpp.h fl_taged.cpp.h Fle_Colors.hpp Fle_Schemes.hpp
 $(objdir)/lang.o: lang.h os.h dbgutil.h
 $(objdir)/mp3.o: mp3.h os.h lang.h dbgutil.h
 $(objdir)/os.o: lang.h os.h dbgutil.h

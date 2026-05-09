@@ -61,7 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="fltk.lib fltkimages.lib fltkjpeg.lib lib7zipd.lib"
+				AdditionalDependencies="fltk.lib fltk_images.lib fltk_jpeg.lib lib7zipd.lib"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="..\fltk\lib;..\lib7zip;..\ogg\lib"
 				GenerateDebugInformation="true"
@@ -137,7 +137,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="fltk.lib fltkimages.lib fltkjpeg.lib lib7zip.lib"
+				AdditionalDependencies="fltk.lib fltk_images.lib fltk_jpeg.lib lib7zip.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="..\fltk\lib;..\lib7zip;..\ogg\lib"
 				GenerateDebugInformation="true"

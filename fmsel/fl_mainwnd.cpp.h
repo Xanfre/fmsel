@@ -53,7 +53,7 @@ static Fl_Double_Window* MakeWindow() {
       pFMList->align(Fl_Align(FL_ALIGN_BOTTOM));
       pFMList->when(FL_WHEN_RELEASE);
       Fl_Group::current()->resizable(pFMList);
-      pFMList->selection_color((Fl_Color)(USER_CLR+29));
+      pFMList->selection_color( fl_themed_rgb_color(170,238,255) );
       o->labelsize(FL_NORMAL_SIZE-2);
     } // Fl_FM_List* pFMList
     { pGroupBottom = new Fl_Group(5, 348, 620, 32);
@@ -304,7 +304,7 @@ static Fl_Double_Window* MakeWindow() {
       pTagFilterGroup->labelcolor(FL_FOREGROUND_COLOR);
       pTagFilterGroup->align(Fl_Align(FL_ALIGN_TOP));
       pTagFilterGroup->when(FL_WHEN_RELEASE);
-      o->color((Fl_Color)(USER_CLR+28));
+      o->color( fl_themed_rgb_color(226,226,217) );
       pTagFilterGroup->end();
     } // Fl_FM_TagFilter_Group* pTagFilterGroup
     pMainWnd->size_range(630, 380);
