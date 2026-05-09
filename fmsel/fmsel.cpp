@@ -9041,7 +9041,7 @@ public:
 		o->textfont(FL_HELVETICA);
 		o->textsize(FL_NORMAL_SIZE);
 		//o->textcolor( fl_rgb_color(200,230,250) );
-		o->textcolor( fl_themed_rgb_color(220,220,220) );
+		o->textcolor( fl_rgb_color(220,220,220) );
 		o->link(link_cb);
 		o->include_anchor_to_cb();
 
