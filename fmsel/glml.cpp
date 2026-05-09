@@ -10,7 +10,10 @@
  * FMSel.
  */
 
+#ifdef GLML_SUPPORT
+
 #include "glml.h"
+#include "os.h"
 #include <fstream>
 #include <algorithm>
 
@@ -51,7 +54,7 @@ string GlmlToHtml(const string &filename, const string &dirname)
 	// read the file into a string for conversion
 #ifdef _WIN32
 	string fl = dirname + "\\" + filename;
-	std::wifstream ifs(WidenStrOS(fl.c_str()).c_str());
+	std::ifstream ifs(WidenStrOS(fl.c_str()).c_str());
 #else
 	string fl = dirname + "/" + filename;
 	std::ifstream ifs(fl.c_str());
@@ -110,3 +113,5 @@ string GlmlGetTitle(const string &file)
 
 	return file.substr(title_start, title_end - title_start);
 }
+
+#endif // GLML_SUPPORT

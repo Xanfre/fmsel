@@ -12,7 +12,7 @@
 
 #pragma once
 
-#ifndef _MP3_H_
+#if defined(AUDIO_SUPPORT) && !defined(_MP3_H_)
 #define _MP3_H_
 
 #include <stdio.h>
@@ -35,4 +35,4 @@ bool ConvertFlacFile(const char *name, const char *wavname);
 const char* GetFlacVersion();
 #endif
 
-#endif // _MP3_H_
+#endif // AUDIO_SUPPORT && !_MP3_H_

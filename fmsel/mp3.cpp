@@ -10,6 +10,8 @@
  * FMSel.
  */
 
+#ifdef AUDIO_SUPPORT
+
 #include <string.h>
 #ifndef _WIN32
 #define _strnicmp strncasecmp
@@ -503,3 +505,5 @@ const char* GetFlacVersion()
 	return flacver;
 }
 #endif
+
+#endif // AUDIO_SUPPORT

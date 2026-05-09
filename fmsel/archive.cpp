@@ -277,7 +277,7 @@ public:
 		tmp = dest + itempath;
 
 #ifdef _WIN32
-		m_pFile = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+		m_pFile = CreateFileW(WidenStrOS(tmp.c_str()).c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 #else
 		m_pFile = fl_fopen(tmp.c_str(), "wb");
 #endif

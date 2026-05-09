@@ -256,7 +256,7 @@ static sFMSelectorData *g_pFMSelData = NULL;
 static string g_sRootPath;
 static const char *GetRootPath()
 {
-	if (g_sRootPath.size == 0)
+	if (g_sRootPath.size() == 0)
 		g_sRootPath = PromoteStrOS(g_pFMSelData->sRootPath);
 
 	return g_sRootPath.c_str();

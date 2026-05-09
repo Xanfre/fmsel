@@ -10,7 +10,7 @@
  * FMSel.
  */
 
-#ifndef _GLML_H_
+#if defined(GLML_SUPPORT) && !defined(_GLML_H_)
 #define _GLML_H_
 
 
@@ -24,4 +24,4 @@ std::string GlmlToHtml(const std::string &filename, const std::string &dirname);
 // extract the fm title from a glml file-in-a-string
 std::string GlmlGetTitle(const std::string &file);
 
-#endif // _GLML_H_
+#endif // GLML_SUPPORT && !_GLML_H_

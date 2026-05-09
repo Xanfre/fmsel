@@ -12,6 +12,7 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <io.h>
 #else
 #include <spawn.h>
 #include <unistd.h>
@@ -27,7 +28,6 @@
 #include <sys/stat.h>
 #include <FL/Fl.H>
 #ifdef _WIN32
-#define FL_INTERNALS
 #include <FL/x.H>
 #include <process.h>
 #include <sys/utime.h>
@@ -193,7 +193,7 @@ extern char **environ;
 BOOL OpenFileWithAssociatedApp(const char *filename, const char *dirname)
 {
 #ifdef _WIN32
-	int res = (int) ShellExecuteW(NULL, "open", WidenStrOS(filename).c_str(), NULL, WidenStrOS(dirname).c_str(), SW_SHOWNORMAL);
+	int res = (int) ShellExecuteW(NULL, L"open", WidenStrOS(filename).c_str(), NULL, WidenStrOS(dirname).c_str(), SW_SHOWNORMAL);
 	return res > 32;
 #else
 	posix_spawn_file_actions_t fileactions;
@@ -226,7 +226,7 @@ BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser)
 		return OpenFileWithAssociatedApp(url, NULL);
 
 #ifdef _WIN32
-	int res = (int) ShellExecuteW(NULL, "open", WidenStrOS(custombrowser).c_str(), WidenStrOS(url).c_str(), NULL, SW_SHOWNORMAL);
+	int res = (int) ShellExecuteW(NULL, L"open", WidenStrOS(custombrowser).c_str(), WidenStrOS(url).c_str(), NULL, SW_SHOWNORMAL);
 	return res > 32;
 #else
 	posix_spawnattr_t attr;
@@ -293,20 +293,22 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 		if (*s == '/')
 			*s = '\\';
 
-	std::wstring title_w, defext_w, result_w;
+	std::wstring title_w, defext_w;
 	if (title)
 		title_w = WidenStrOS(title);
 	if (defext)
 		defext_w = WidenStrOS(defext);
-	result_w = WidenStrOS(result);
+
+	wchar_t *result_w = new wchar_t[len];
+	fl_utf8towc(result, strlen(result), result_w, len);
 
 	OPENFILENAMEW ofn = {};
 	ofn.lStructSize = sizeof(ofn);
-	ofn.lpstrTitle = title ? title_w : NULL;
-	ofn.hwndOwner = parent ? Fl_X::i(parent)->xid : NULL;
+	ofn.lpstrTitle = title ? title_w.c_str() : NULL;
+	ofn.hwndOwner = parent ? fl_xid(parent) : NULL;
 	ofn.hInstance = fl_display;
 	ofn.lpstrFilter = filter;
-	ofn.lpstrDefExt = defext ? defext_w : NULL;
+	ofn.lpstrDefExt = defext ? defext_w.c_str() : NULL;
 	ofn.nFilterIndex = 0;
 	ofn.lpstrInitialDir = result_w;
 	ofn.lpstrFile = result_w;
@@ -322,11 +324,13 @@ BOOL FileDialog(Fl_Window *parent, BOOL bSave, const char *title, const char **p
 	if (res)
 	{
 		std::string newresult = NarrowStrOS(result_w);
-		if (newresult.size() > len-1)
-			res = FALSE
+		if (newresult.size() > (size_t)len-1)
+			res = FALSE;
 		else
 			strcpy(result, newresult.c_str());
 	}
+
+	delete[] result_w;
 
 	// OFN_NOCHANGEDIR has no effect with GetOpenFileName on win2k+ so let's make really sure no one messes with cwd
 	fl_chdir(cwd);
@@ -408,7 +412,7 @@ BOOL GetFreeDiskSpaceOS(const char *path, unsigned __int64 &freeMB)
 {
 #ifdef WIN32
 	ULARGE_INTEGER avail, tot, totavail;
-	if ( !GetDiskFreeSpaceExW(WidenStrOS(path).str(), &avail, &tot, &totavail) )
+	if ( !GetDiskFreeSpaceExW(WidenStrOS(path).c_str(), &avail, &tot, &totavail) )
 		return FALSE;
 	freeMB = avail.QuadPart / (ULONGLONG)(1024*1024);
 #else
@@ -583,11 +587,23 @@ BOOL GetFmselModulePathOS(char *buf, int len)
 	if (!g_hDllHandle)
 		return FALSE;
 
-	if ( !GetModuleFileNameW(g_hDllHandle, WidenStrOS(buf).c_str(), len) )
+	wchar_t *buf_w = new wchar_t[len];
+
+	if ( !GetModuleFileNameW(g_hDllHandle, buf_w, len) )
 	{
-		ASSERT(FALSE);
-		return FALSE;
+		std::string newbuf = NarrowStrOS(buf_w);
+		if (newbuf.size() <= (size_t)len-1)
+		{
+			strcpy(buf, newbuf.c_str());
+
+			delete[] buf_w;
+
+			ASSERT(FALSE);
+			return FALSE;
+		}
 	}
+
+	delete[] buf_w;
 #else
 	Dl_info info;
 
