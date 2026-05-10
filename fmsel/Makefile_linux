@@ -6,19 +6,13 @@ LIBDIR = $(PREFIX)/lib
 LICDIR = $(PREFIX)/share/licenses/libfmsel
 INCDIR = $(PREFIX)/include
 
-TARGET ?=
-ifeq ($(TARGET),)
 CC ?= gcc
 CXX ?= g++
-else
-CC = $(TARGET)-gcc
-CXX = $(TARGET)-g++
-endif
 
-CFLAGS_ALL = -O2 $(CFLAGS)
-CXXFLAGS_ALL = -O2 $(CXXFLAGS)
-CPPFLAGS_C_ALL = -std=gnu99 -Wall -Wextra -Wno-unused -Wno-unused-result -DNO_VIZ $(CPPFLAGS)
-CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -I../zlibcomp -Wall -Wextra -Wno-cast-function-type -Wno-format-security -Wno-unused -Wno-unused-result $(CPPFLAGS)
+CFLAGS_ALL = -O2 -fPIC -fvisibility=hidden $(CFLAGS)
+CXXFLAGS_ALL = -O2 -fPIC -fvisibility=hidden $(CXXFLAGS)
+CPPFLAGS_C_ALL = -std=gnu99 -Wall -Wextra -Wno-unused -Wno-unused-result $(CPPFLAGS)
+CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wextra -Wno-cast-function-type -Wno-format-security -Wno-unused -Wno-unused-result -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_LARGEFILE_SOURCE -DLARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D__int64="long long int" $(CPPFLAGS)
 
 ifeq ($(STATIC),)
 	LDFLAGS_FLTK = $(shell fltk-config --use-images --ldflags)
@@ -26,8 +20,14 @@ else
 	LDFLAGS_FLTK = $(shell fltk-config --use-images --ldstaticflags)
 endif
 
-LDFLAGS_ALL = $(L7ZIP_LIB) $(LDFLAGS_FLTK) -Wl,--strip-all $(LDFLAGS)
+LDFLAGS_ALL = $(L7ZIP_LIB) $(LDFLAGS_FLTK) -Wl,--strip-all -Wl,--no-undefined -Wl,-soname,$(SONAME) $(LDFLAGS)
 
+ifneq ($(USE_PATH_MAX),)
+	CPPFLAGS_CXX_ALL += -DUSE_PATH_MAX
+endif
+ifneq ($(USE_XDG),)
+	CPPFLAGS_CXX_ALL += -DUSE_XDG
+endif
 ifneq ($(AUDIO_SUPPORT),)
 	CPPFLAGS_CXX_ALL += -DAUDIO_SUPPORT
 endif
@@ -50,7 +50,7 @@ ifneq ($(GLML_SUPPORT),)
 	CPPFLAGS_CXX_ALL += -DGLML_SUPPORT
 endif
 
-LIBS = -l7zip -loleaut32
+LIBS = -l7zip $(shell pkg-config --libs minizip)
 
 ifneq ($(OGG_SUPPORT),)
 	LIBS += $(shell pkg-config --libs vorbisfile vorbis)
@@ -65,7 +65,7 @@ ifneq ($(OGG_SUPPORT)$(OPUS_SUPPORT)$(FLAC_SUPPORT),)
 	LIBS += $(shell pkg-config --libs ogg)
 endif
 
-SONAME ?= fmsel.dll
+SONAME ?= libfmsel.so.1
 
 TOOL_LIBS = -l:$(SONAME)
 
@@ -80,16 +80,6 @@ FLTK_OBJS = $(objdir)/Fl_Table.o \
 			$(objdir)/Fle_Schemes.o
 TOOL_OBJS = $(objdir)/fmsel_launch.o
 
-ZLIB_OBJS = $(objdir)/adler32.o \
-			$(objdir)/compress.o \
-			$(objdir)/crc32.o \
-			$(objdir)/deflate.o \
-			$(objdir)/ioapi.o \
-			$(objdir)/iowin32.o \
-			$(objdir)/trees.o \
-			$(objdir)/zip.o \
-			$(objdir)/zutil.o
-
 ifneq ($(AUDIO_SUPPORT),)
 	FMSEL_OBJS += $(objdir)/mp3.o
 endif
@@ -99,15 +89,15 @@ else ifneq ($(GLML_SUPPORT),)
 	FMSEL_OBJS += $(objdir)/glml.o
 endif
 
-.PHONY: all install clean install_tools
+.PHONY: all install clean install_link install_tools
 
 ifeq ($(BUILD_TOOLS),)
 all: $(objdir) $(SONAME)
 else
-all: $(objdir) $(SONAME) fmsel.exe
+all: $(objdir) $(SONAME) fmsel
 endif
 
-install: install_tools
+install: install_link install_tools
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	mkdir -p $(DESTDIR)$(LICDIR)
 	mkdir -p $(DESTDIR)$(INCDIR)
@@ -118,12 +108,18 @@ install: install_tools
 clean:
 	rm -rf $(objdir)
 	rm -f $(SONAME)
-	rm -f fmsel.exe
+	rm -f fmsel
+
+install_link:
+ifneq ($(SONAME),libfmsel.so)
+	mkdir -p $(DESTDIR)$(LIBDIR)
+	ln -s $(SONAME) $(DESTDIR)$(LIBDIR)/libfmsel.so
+endif
 
 install_tools:
 ifneq ($(BUILD_TOOLS),)
 	mkdir -p $(DESTDIR)$(BINDIR)
-	install -p -m 755 fmsel.exe $(DESTDIR)$(BINDIR)
+	install -p -m 755 fmsel $(DESTDIR)$(BINDIR)
 endif
 
 $(objdir):
@@ -164,8 +160,8 @@ $(objdir)/trees.o: ../zlibcomp/deflate.h ../zlibcomp/zutil.h ../zlibcomp/zlib.h 
 $(objdir)/zip.o: ../zlibcomp/zlib.h ../zlibcomp/zconf.h ../zlibcomp/zip.h ../zlibcomp/ioapi.h ../zlibcomp/crypt.h
 $(objdir)/zutil.o: ../zlibcomp/zutil.h ../zlibcomp/zlib.h ../zlibcomp/zconf.h
 
-$(SONAME): $(FMSEL_OBJS) $(FLTK_OBJS) $(ZLIB_OBJS) fmsel.def
+$(SONAME): $(FMSEL_OBJS) $(FLTK_OBJS)
 	$(CXX) $(CXXFLAGS_ALL) -shared $^ -o $@ $(LDFLAGS_ALL) $(LIBS)
 
-fmsel.exe: $(TOOL_OBJS) $(SONAME)
+fmsel: $(TOOL_OBJS) $(SONAME)
 	$(CC) $(CFLAGS_ALL) $(LDFLAGS) -L. $(TOOL_OBJS) -o $@ $(TOOL_LIBS)
