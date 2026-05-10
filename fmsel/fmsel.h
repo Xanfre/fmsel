@@ -22,7 +22,7 @@
 #ifdef _WIN32
 #define FMSELLIB "fmsel.dll"
 #else
-#define FMSELLIB "libfmsel.so"
+#define FMSELLIB "libfmsel.so.1"
 #endif
 
 
