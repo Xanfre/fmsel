@@ -6787,13 +6787,17 @@ public:
 		MENU_SUB($("UI Theme"));
 			for (i=0; i<Fl_Scheme::num_schemes() && i<MAX_WIDGET_SCHEMES; i++)
 				MENU_RITEM(Fl_Scheme::names()[i], CMD_WidgetScheme0+i, g_cfg.uitheme == i);
+#ifndef NO_FLEET
 			for (j=i,i=0; i<fle_num_schemes() && i<MAX_WIDGET_SCHEMES; i++,j++)
 				MENU_RITEM(fle_scheme_name(i), CMD_WidgetScheme0+j, g_cfg.uitheme == j);
+#endif
 			MENU_END();
 		MENU_SUB($("UI Colors"));
+#ifndef NO_FLEET
 			for (i=0; i<fle_num_colors() && i<MAX_WIDGET_COLORS; i++)
 				MENU_RITEM(fle_colors_name(i), CMD_WidgetColors0+i, g_cfg.uicolors == i);
 			MENU_MOD_DIV();
+#endif
 			MENU_TITEM($("Darken HTML"), CMD_DarkenHTML, g_cfg.bDarkHTMLColors);
 			MENU_END();
 		MENU_SUB($("UI Font Size"));
@@ -7010,6 +7014,7 @@ public:
 
 					pMainWnd->redraw();
 				}
+#ifndef NO_FLEET
 				else
 				{
 					int i = g_cfg.uitheme - Fl_Scheme::num_schemes();
@@ -7020,7 +7025,9 @@ public:
 						pMainWnd->redraw();
 					}
 				}
+#endif
 			}
+#ifndef NO_FLEET
 			else if (cmd_id >= CMD_WidgetColors0 && cmd_id <= CMD_WidgetColorsLast)
 			{
 				fl_message_position(pMainWnd);
@@ -7031,6 +7038,7 @@ public:
 					OnExit(NULL, NULL);
 				}
 			}
+#endif
 		}
 	}
 };
@@ -13089,16 +13097,20 @@ static void InitFLTK()
 
 	fl_register_jpeg();
 
+#ifndef NO_FLEET
 	if (g_cfg.uicolors >= 0 && g_cfg.uicolors < fle_num_colors())
 		fle_set_colors(fle_colors_name(g_cfg.uicolors));
+#endif
 	if (g_cfg.uitheme >= 0 && g_cfg.uitheme < Fl_Scheme::num_schemes())
 		Fl::scheme(Fl_Scheme::names()[g_cfg.uitheme]);
+#ifndef NO_FLEET
 	else
 	{
 		int i = g_cfg.uitheme - Fl_Scheme::num_schemes();
 		if (i >= 0 && i < fle_num_schemes())
 			fle_set_scheme(fle_scheme_name(i));
 	}
+#endif
 
 	FL_NORMAL_SIZE = g_cfg.bLargeFont ? 14 : 12;
 	fl_message_font(FL_HELVETICA, FL_NORMAL_SIZE);

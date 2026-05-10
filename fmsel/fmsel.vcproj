@@ -41,8 +41,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\fltk;..\lib7zip;..\zlibcomp;..\ogg"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;FMSEL_EXPORTS;_CRT_SECURE_NO_WARNINGS;_BIND_TO_CURRENT_VCLIBS_VERSION=1;MP3_SUPPORT=1;OGG_SUPPORT=1;CUSTOM_FLTK=1"
+				AdditionalIncludeDirectories="..\fltk;..\lib7zip;..\zlibcomp;..\ogg;..\opus;..\flac;..\dr_libs"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;FMSEL_EXPORTS;_CRT_SECURE_NO_WARNINGS;_BIND_TO_CURRENT_VCLIBS_VERSION=1;GLML_SUPPORT=1;NO_FLEET=1"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -61,9 +61,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="fltk.lib fltk_images.lib fltk_jpeg.lib lib7zipd.lib"
+				AdditionalDependencies="fltk.lib fltk_images.lib fltk_jpeg.lib lib7zipd.lib gdiplus.lib comctl32.lib ws2_32.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="..\fltk\lib;..\lib7zip;..\ogg\lib"
+				AdditionalLibraryDirectories="..\fltk\lib;..\lib7zip;..\ogg\lib;..\opus\lib;..\opus\flac"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				TargetMachine="1"
@@ -118,8 +118,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="..\fltk;..\lib7zip;..\zlibcomp;..\ogg"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;FMSEL_EXPORTS;_CRT_SECURE_NO_WARNINGS;_BIND_TO_CURRENT_VCLIBS_VERSION=1;MP3_SUPPORT=1;OGG_SUPPORT=1;CUSTOM_FLTK=1"
+				AdditionalIncludeDirectories="..\fltk;..\lib7zip;..\zlibcomp;..\ogg;..\opus;..\flac;..\dr_libs"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;FMSEL_EXPORTS;_CRT_SECURE_NO_WARNINGS;_BIND_TO_CURRENT_VCLIBS_VERSION=1;GLML_SUPPORT=1;NO_FLEET=1"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
@@ -137,9 +137,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="fltk.lib fltk_images.lib fltk_jpeg.lib lib7zip.lib"
+				AdditionalDependencies="fltk.lib fltk_images.lib fltk_jpeg.lib lib7zip.lib gdiplus.lib comctl32.lib ws2_32.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="..\fltk\lib;..\lib7zip;..\ogg\lib"
+				AdditionalLibraryDirectories="..\fltk\lib;..\lib7zip;..\ogg\lib;..\opus\lib;..\opus\flac"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				OptimizeReferences="2"
