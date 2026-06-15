@@ -53,6 +53,7 @@
 #include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_Round_Button.H>
 #include <FL/filename.H>
+#include <FL/Fl_File_Chooser.H>
 #include <FL/Fl_Pixmap.H>
 #include <FL/Fl_Menu_Window.H>
 #include <FL/Fl_Browser_.H>
@@ -154,6 +155,11 @@ static Fl_Color fl_themed_rgb_color(unsigned char r, unsigned char g, unsigned c
 // max text length for FM description (should be kept relatively short as it's meant for a web search result
 // style of brief description, not full blown release notes like an info file)
 #define MAX_DESCR_LEN 1500
+
+// use directory picker for archive directory
+#ifndef _WIN32
+#define ARCHIVE_DIR_PICKER
+#endif
 
 
 #ifndef NULL
@@ -10893,6 +10899,18 @@ static void ConfigArchivePath(BOOL bStartupConfig)
 {
 retry:
 	char fname[MAX_PATH_BUF];
+#ifdef ARCHIVE_DIR_PICKER
+	if (g_cfg.bRepoOK)
+		_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP_STR, g_cfg.archiveRepo.c_str());
+	else
+		_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP_STR, GetRootPath());
+
+	char *s = fl_dir_chooser($("Set FM Archive Library Path"), fname);
+	if (!s)
+		return;
+
+	strncpy(fname, s, sizeof(fname) - 1);
+#else
 	if (g_cfg.bRepoOK)
 		_snprintf_s(fname, sizeof(fname), _TRUNCATE, "%s" DIRSEP_STR "anyfile", g_cfg.archiveRepo.c_str());
 	else
@@ -10912,6 +10930,7 @@ retry:
 	char *s = fname + strlen(fname) - 1;
 	while (s > fname && !isdirsep(*s)) s--;
 	*s = 0;
+#endif
 
 	CleanDirSlashes(fname);
 
