@@ -377,13 +377,7 @@ BOOL FileDialog(Fl_Window *, BOOL bSave, const char *title, const char **pattern
 	}
 
 retry:
-	int iFontSize = FL_NORMAL_SIZE;
-	BOOL bChangeFont = iFontSize > 18;
-	if (bChangeFont)
-		FL_NORMAL_SIZE = 18;
 	const char *s = fl_file_chooser(title, filter, initial_);
-	if (bChangeFont)
-		FL_NORMAL_SIZE = iFontSize;
 	if (!s)
 		return FALSE;
 
