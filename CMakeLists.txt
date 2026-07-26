@@ -136,7 +136,9 @@ if (FLAC_SUPPORT)
 	target_link_libraries(fmsel PRIVATE ${FLAC_LIBRARIES})
 endif()
 
-if (NOT WIN32)
+if (WIN32)
+	target_link_options(fmsel PRIVATE "-Wl,--exclude-all-symbols")
+else()
 	target_link_options(fmsel PRIVATE "-Wl,--no-undefined")
 endif()
 
