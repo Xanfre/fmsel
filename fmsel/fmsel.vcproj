@@ -42,7 +42,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="..\fltk;..\lib7zip;..\zlibcomp;..\ogg;..\opus;..\flac;..\dr_libs"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;FMSEL_EXPORTS;_CRT_SECURE_NO_WARNINGS;_BIND_TO_CURRENT_VCLIBS_VERSION=1;GLML_SUPPORT=1;NO_FLEET=1"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;FMSEL_EXPORTS;_CRT_SECURE_NO_WARNINGS;_BIND_TO_CURRENT_VCLIBS_VERSION=1;LEGACY_ARCHIVE_LIB=1;GLML_SUPPORT=1;NO_FLEET=1"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -119,7 +119,7 @@
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
 				AdditionalIncludeDirectories="..\fltk;..\lib7zip;..\zlibcomp;..\ogg;..\opus;..\flac;..\dr_libs"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;FMSEL_EXPORTS;_CRT_SECURE_NO_WARNINGS;_BIND_TO_CURRENT_VCLIBS_VERSION=1;GLML_SUPPORT=1;NO_FLEET=1"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;FMSEL_EXPORTS;_CRT_SECURE_NO_WARNINGS;_BIND_TO_CURRENT_VCLIBS_VERSION=1;LEGACY_ARCHIVE_LIB=1;GLML_SUPPORT=1;NO_FLEET=1"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
@@ -178,7 +178,7 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\archive.cpp"
+				RelativePath=".\archive_lib7zip.cpp"
 				>
 			</File>
 			<File

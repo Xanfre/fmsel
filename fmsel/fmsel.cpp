@@ -60,7 +60,9 @@
 #undef min
 #undef max
 #include "dbgutil.h"
+#ifdef LEGACY_ARCHIVE_LIB
 #include "lib7zip.h"
+#endif
 #ifdef AUDIO_SUPPORT
 #include "mp3.h"
 #endif
@@ -316,6 +318,7 @@ void InitProgress(int nSteps, const char *label);
 void TermProgress();
 int RunProgress();
 void StepProgress(int nSteps);
+void SetProgress(int nStep);
 void EndProgress(int result);
 
 static void DoTagEditor(FMEntry *fm, int page = TABPAGE_TAGS);
@@ -10671,8 +10674,13 @@ static void ViewAbout()
 		"<b>fltk v%d.%d.%d</b><br>"
 		"<a href=\"https://www.fltk.org\"><b>https://www.fltk.org</b></a>"
 		"<br><br>"
+#ifdef LEGACY_ARCHIVE_LIB
 		"<b>" LIB_7ZIP_7ZIP_VERSION "</b><br>"
 		"<a href=\"https://code.google.com/archive/p/lib7zip\"><b>https://code.google.com/archive/p/lib7zip</b></a>"
+#else
+		"<b>bit7z</b><br>"
+		"<a href=\"https://github.com/rikyoz/bit7z\"><b>https://github.com/rikyoz/bit7z</b></a>"
+#endif
 		"<br><br>"
 		"<b>7-Zip dynamic library</b> (which is licensed under GNU LGPL)<br>"
 		"<a href=\"https://7-zip.org\"><b>https://7-zip.org</b></a>"
@@ -11215,6 +11223,25 @@ void StepProgress(int nSteps)
 		const int vistick1 = (NUM_VISUAL_STEPS * g_nCurProgress) / g_nMaxSteps;
 
 		if (vistick0 != vistick1)
+		{
+			g_nLastProgress = g_nCurProgress;
+			Fl::awake();
+		}
+	}
+}
+
+// called from worker thread to set step count
+void SetProgress(int nStep)
+{
+	if (g_pProgressDlg)
+	{
+		g_nCurProgress = nStep;
+		if (g_nCurProgress < 0)
+			g_nCurProgress = 0;
+		if (g_nCurProgress > g_nMaxSteps)
+			g_nCurProgress = g_nMaxSteps;
+
+		if (g_nLastProgress != g_nCurProgress)
 		{
 			g_nLastProgress = g_nCurProgress;
 			Fl::awake();
