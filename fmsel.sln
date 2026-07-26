@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fmsel", "fmsel/fmsel.vcproj", "{303A9D89-C140-4878-B6C7-83877588E8E5}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fmsel", "fmsel.vcproj", "{303A9D89-C140-4878-B6C7-83877588E8E5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
