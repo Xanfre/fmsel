@@ -13,9 +13,6 @@
 #ifdef AUDIO_SUPPORT
 
 #include <string.h>
-#ifndef _WIN32
-#define _strnicmp strncasecmp
-#endif
 #include "mp3.h"
 #include "os.h"
 #include "lang.h"

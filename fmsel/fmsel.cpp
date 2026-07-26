@@ -32,14 +32,6 @@
 #else
 #include <locale.h>
 #include <unistd.h>
-#define rsize_t size_t
-#define _mkgmtime timegm
-#define _stricmp strcasecmp
-#define _strnicmp strncasecmp
-#define _strdup strdup
-#define _strtoui64 strtoull
-#define _snprintf_s(a,b,c,d,...) snprintf(a,b,d,__VA_ARGS__)
-#define strcat_s(a,b,c) strncat(a,c,b-strlen(a)-1)
 #endif
 #include <errno.h>
 #include <FL/Fl.H>
@@ -68,9 +60,6 @@
 #undef min
 #undef max
 #include "dbgutil.h"
-#if !defined(_WIN32) && defined(__int64)
-#undef __int64
-#endif
 #include "lib7zip.h"
 #ifdef AUDIO_SUPPORT
 #include "mp3.h"
@@ -167,11 +156,7 @@ static Fl_Color fl_themed_rgb_color(unsigned char r, unsigned char g, unsigned c
 #endif
 
 #ifndef MAX_PATH
-#if !defined(_WIN32) && defined(PATH_MAX) && defined(USE_PATH_MAX)
-#define MAX_PATH PATH_MAX
-#else
 #define MAX_PATH 260
-#endif
 #endif
 
 #define MAX_PATH_BUF (MAX_PATH+1)

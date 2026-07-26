@@ -21,8 +21,6 @@
 #ifdef USE_XDG
 #include <limits.h>
 #endif
-#define _strnicmp strncasecmp
-#define strnicmp strncasecmp
 #endif
 
 #ifdef LOCALIZATION_SUPPORT

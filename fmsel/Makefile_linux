@@ -12,7 +12,7 @@ CXX ?= g++
 CFLAGS_ALL = -O2 -fPIC -fvisibility=hidden $(CFLAGS)
 CXXFLAGS_ALL = -O2 -fPIC -fvisibility=hidden $(CXXFLAGS)
 CPPFLAGS_C_ALL = -std=gnu99 -Wall -Wextra -Wno-unused -Wno-unused-result $(CPPFLAGS)
-CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -Wall -Wextra -Wno-cast-function-type -Wno-format-security -Wno-unused -Wno-unused-result -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_LARGEFILE_SOURCE -DLARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D__int64="long long int" $(CPPFLAGS)
+CPPFLAGS_CXX_ALL = -std=gnu++11 $(L7ZIP_INC) -include unixcompat.h -Wall -Wextra -Wno-cast-function-type -Wno-format-security -Wno-unused -Wno-unused-result -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_LARGEFILE_SOURCE -DLARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D__int64="long long int" $(CPPFLAGS)
 
 ifeq ($(STATIC),)
 	LDFLAGS_FLTK = $(shell fltk-config --use-images --ldflags)

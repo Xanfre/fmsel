@@ -17,12 +17,6 @@
 #include <spawn.h>
 #include <unistd.h>
 #include <sys/statvfs.h>
-#define TRUE 1
-#define FALSE 0
-#define sprintf_s snprintf
-#define strcat_s(a,b,c) strncat(a,c,b-strlen(a)-1)
-#define strcpy_s(a,b,c) memset(a,0,b); strncpy(a,c,b-1);
-#define MAX_PATH PATH_MAX
 #define PREF_PROG "xdg-open"
 #endif
 #include <sys/stat.h>
