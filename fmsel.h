@@ -16,7 +16,7 @@
 #define _FMSEL_H_
 
 
-#define FMSEL_VERSION "1.1.2"
+#define FMSEL_VERSION "1.2.0"
 
 
 #ifdef _WIN32
