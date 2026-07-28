@@ -101,7 +101,7 @@ bool ConvertMp3File(const char *name, const char *wavname)
 
 	drmp3 dec;
 #ifdef _WIN32
-	if (DRMP3_TRUE != drmp3_init_file_w(&dec, WidenStrOS(name), NULL))
+	if (DRMP3_TRUE != drmp3_init_file_w(&dec, WidenStrOS(name).c_str(), NULL))
 #else
 	if (DRMP3_TRUE != drmp3_init_file(&dec, name, NULL))
 #endif
