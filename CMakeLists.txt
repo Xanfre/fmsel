@@ -15,6 +15,7 @@ option(OPUS_SUPPORT "Enable Opus support" ON)
 option(FLAC_SUPPORT "Enable FLAC support" ON)
 option(T3_SUPPORT "Enable support for T3 FMs" OFF)
 option(GLML_SUPPORT "Enable support for GLML readmes" ${T3_SUPPORT})
+option(USE_SHARED_FLTK "Link with FLTK shared libraries" OFF)
 
 set(BIT7Z_AUTO_FORMAT ON CACHE BOOL "Enable or disable auto format detection" FORCE)
 if (NOT WIN32)
@@ -125,7 +126,11 @@ add_library(
 	Fle_Schemes.cpp
 )
 
-target_link_libraries(fmsel PRIVATE fltk::fltk-shared fltk::images-shared bit7z)
+if (USE_SHARED_FLTK)
+	target_link_libraries(fmsel PRIVATE fltk::fltk-shared fltk::images-shared bit7z)
+else()
+	target_link_libraries(fmsel PRIVATE fltk::fltk fltk::images bit7z)
+endif()
 if (OGG_SUPPORT)
 	target_link_libraries(fmsel PRIVATE ${OGG_LIBRARIES})
 endif()
