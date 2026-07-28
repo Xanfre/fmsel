@@ -6759,7 +6759,7 @@ public:
 		strcat_s(dateformats[0], sizeof(dateformats[0]), $("(cur locale)"));
 		dateformats[0][sizeof(dateformats[0])-1] = 0;
 
-		const int MAX_MENU_ITEMS = 64+16;
+		const int MAX_MENU_ITEMS = 256;
 		int menu_items = 0;
 
 		Fl_Menu_Item menu[MAX_MENU_ITEMS];
