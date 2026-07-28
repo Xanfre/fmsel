@@ -187,7 +187,7 @@ extern char **environ;
 BOOL OpenFileWithAssociatedApp(const char *filename, const char *dirname)
 {
 #ifdef _WIN32
-	int res = (int) ShellExecuteW(NULL, L"open", WidenStrOS(filename).c_str(), NULL, WidenStrOS(dirname).c_str(), SW_SHOWNORMAL);
+	INT_PTR res = (INT_PTR) ShellExecuteW(NULL, L"open", WidenStrOS(filename).c_str(), NULL, WidenStrOS(dirname).c_str(), SW_SHOWNORMAL);
 	return res > 32;
 #else
 	posix_spawn_file_actions_t fileactions;
@@ -220,7 +220,7 @@ BOOL OpenUrlWithAssociatedApp(const char *url, const char *custombrowser)
 		return OpenFileWithAssociatedApp(url, NULL);
 
 #ifdef _WIN32
-	int res = (int) ShellExecuteW(NULL, L"open", WidenStrOS(custombrowser).c_str(), WidenStrOS(url).c_str(), NULL, SW_SHOWNORMAL);
+	INT_PTR res = (INT_PTR) ShellExecuteW(NULL, L"open", WidenStrOS(custombrowser).c_str(), WidenStrOS(url).c_str(), NULL, SW_SHOWNORMAL);
 	return res > 32;
 #else
 	posix_spawnattr_t attr;
