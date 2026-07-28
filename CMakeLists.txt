@@ -17,13 +17,10 @@ option(T3_SUPPORT "Enable support for T3 FMs" OFF)
 option(GLML_SUPPORT "Enable support for GLML readmes" ${T3_SUPPORT})
 option(USE_SHARED_FLTK "Link with FLTK shared libraries" OFF)
 
-set(BIT7Z_AUTO_FORMAT ON CACHE BOOL "Enable or disable auto format detection" FORCE)
-if (NOT WIN32)
-	set(BIT7Z_GENERATE_PIC ON CACHE BOOL "Enable or disable generating Position Independent Code" FORCE)
-endif()
+find_package(FLTK 1.4 CONFIG REQUIRED)
 
-set( CPM_DOWNLOAD_VERSION 0.42.3 )
-set( CPM_DOWNLOAD_HASH "a609e875fd532b067174250f6abbc3dac22fe2d64869783fb1e80bda1625c844" )
+set( CPM_DOWNLOAD_VERSION 0.43.1 )
+set( CPM_DOWNLOAD_HASH "1c40fc102ce9625d7de7eb14f541cab30cc3138dca627f0b0ec40293ce6c2934" )
 if( CPM_SOURCE_CACHE )
     set( CPM_DOWNLOAD_LOCATION "${CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake" )
 elseif( DEFINED ENV{CPM_SOURCE_CACHE} )
@@ -44,9 +41,16 @@ if( NOT ( EXISTS ${CPM_DOWNLOAD_LOCATION} ) )
 endif()
 include( ${CPM_DOWNLOAD_LOCATION} )
 
-find_package(FLTK 1.4 CONFIG REQUIRED)
-
-CPMAddPackage("gh:rikyoz/bit7z@4.1.0")
+list(APPEND BIT7Z_OPTIONS "BIT7Z_AUTO_FORMAT ON")
+if (NOT WIN32)
+	list(APPEND BIT7Z_OPTIONS "BIT7Z_GENERATE_PIC ON")
+endif()
+CPMAddPackage(
+	NAME bit7z
+	GIT_REPOSITORY "https://github.com/rikyoz/bit7z"
+	VERSION "4.1.0"
+	OPTIONS "${BIT7Z_OPTIONS}"
+)
 if (NOT WIN32)
 	set_property(TARGET bit7z PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
@@ -70,6 +74,15 @@ if (FLAC_SUPPORT)
 endif()
 
 if (MP3_SUPPORT OR OGG_SUPPORT OR OPUS_SUPPORT OR FLAC_SUPPORT)
+	CPMAddPackage(
+		NAME dr_libs
+		GIT_REPOSITORY "https://github.com/mackron/dr_libs"
+		GIT_TAG "fa931f3285ced10ace628f7f1ac951e1951e7ea6"
+		GIT_SUBMODULES "tests/common"
+		DOWNLOAD_ONLY TRUE
+	)
+	include_directories("${dr_libs_SOURCE_DIR}")
+
 	add_compile_definitions(AUDIO_SUPPORT)
 	if (MP3_SUPPORT)
 		add_compile_definitions(MP3_SUPPORT)
