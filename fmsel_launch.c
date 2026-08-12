@@ -18,7 +18,9 @@
 #include <windows.h>
 #define getcwd _getcwd
 #else
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 1
+#endif
 #include <limits.h>
 #include <unistd.h>
 #endif

@@ -76,8 +76,12 @@
 #  define getcwd _getcwd
 #else
 #  include <unistd.h>
+#  ifndef TRUE
 #  define TRUE true
+#  endif
+#  ifndef FALSE
 #  define FALSE false
+#  endif
 #endif // WIN32
 
 #define MAX_COLUMNS	200
