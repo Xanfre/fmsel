@@ -28,8 +28,13 @@
 #include <stdarg.h>
 #include <stdio.h>
 #define ASSERT(_x) assert(_x)
+#ifdef _MSC_VER
 #define TRACE(_fmt, ...) DbgPrintf("TRACE: " _fmt DBGNEWLINE, __VA_ARGS__)
 #define TRACEW(_fmt, ...) DbgPrintfW(L"TRACE: " _fmt DBGNEWLINEW, __VA_ARGS__)
+#else
+#define TRACE(_fmt, ...) DbgPrintf("TRACE: " _fmt DBGNEWLINE __VA_OPT__(,) __VA_ARGS__)
+#define TRACEW(_fmt, ...) DbgPrintfW(L"TRACE: " _fmt DBGNEWLINEW __VA_OPT__(,) __VA_ARGS__)
+#endif
 #else
 #define ASSERT(_x)
 #define TRACE(_fmt, ...)

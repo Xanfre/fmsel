@@ -6009,7 +6009,7 @@ static BOOL EnumFileDiffInfo(const char *path, int relname_start)
 	return bRet;
 }
 
-static bool ClearIdenticalEnumeratedArchiveFile(const char *fname, unsigned __int64 fsize, time_t ftime, void *)
+static bool ClearIdenticalEnumeratedArchiveFile(const char *fname, unsigned __int64 fsize, time_t ftime, void *p)
 {
 	ASSERT(p != NULL);
 

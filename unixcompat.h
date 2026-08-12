@@ -26,6 +26,8 @@
 #define _strtoui64 strtoull
 #define _snprintf_s(a,b,c,d,...) snprintf(a,b,d,__VA_ARGS__)
 #define sprintf_s snprintf
+#define vsnprintf_s(a,b,c,d,...) vsnprintf(a,b,d,__VA_ARGS__)
+#define vswprintf_s vswprintf
 #define strcat_s(a,b,c) strncat(a,c,b-strlen(a)-1)
 #define strcpy_s(a,b,c) do { memset(a,0,b); strncpy(a,c,b-1); } while (0)
 #define _chmod chmod
