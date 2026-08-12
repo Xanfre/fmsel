@@ -1972,7 +1972,7 @@ static void GenerateArchiveInstallName(const char *name, FMEntry *fm)
 				strcat(altname, seq);
 			}
 			else
-				sprintf(altname, "%s%s", ftitle, seq);
+				_snprintf_s(altname, sizeof(altname), _TRUNCATE "%s%s", ftitle, seq);
 
 			if ( !GetFM(altname) )
 			{
@@ -3708,7 +3708,7 @@ static BOOL ExportBatchFmIni()
 	{
 		remove(fname);
 		fl_message_position(pMainWnd);
-		fl_message($("The current list contained no archived FMs to export a batched fm.ini for"));
+		fl_message("%s", $("The current list contained no archived FMs to export a batched fm.ini for"));
 	}
 
 	return TRUE;
@@ -3997,7 +3997,7 @@ new_block:
 		fl_message($("Imported data for %d FMs."), count);
 	}
 	else
-		fl_message($("No applicable data found, nothing imported."));
+		fl_message("%s", $("No applicable data found, nothing imported."));
 
 	return TRUE;
 }
@@ -5491,7 +5491,7 @@ static BOOL ConvertAudioFiles(std::list<std::pair<string,int>> &audiofiles, cons
 	{
 		fl_message_position(pMainWnd);
 
-		if ( !fl_choice($("Audio conversion failed partially or completely, proceed anyway?"), fl_cancel, fl_ok, NULL) )
+		if ( !fl_choice("%s", fl_cancel, fl_ok, NULL, $("Audio conversion failed partially or completely, proceed anyway?")) )
 			return FALSE;
 	}
 
@@ -5659,14 +5659,14 @@ static void CheckMissionFlags(const char *installdir)
 	else if (_snprintf_s(fpath, sizeof(fpath), _TRUNCATE, "%s" DIRSEP_STR "strings", installdir) == -1 || fl_mkdir(fpath, DEF_DIR_MODE))
 	{
 		fl_message_position(pMainWnd);
-		fl_alert($("Failed to create \"strings\" directory for mission flags."));
+		fl_alert("%s", $("Failed to create \"strings\" directory for mission flags."));
 		return;
 	}
 
 	if (strlen(fpath)+14 > MAX_PATH_BUF)
 	{
 		fl_message_position(pMainWnd);
-		fl_alert($("Failed to generate mission flags, path too long."));
+		fl_alert("%s", $("Failed to generate mission flags, path too long."));
 		return;
 	}
 	strcat(fpath, DIRSEP_STR "missflag.str");
@@ -5707,7 +5707,7 @@ static BOOL InstallFM(FMEntry *fm)
 	{
 		// shouldn't get here
 		fl_message_position(pMainWnd);
-		fl_alert($("No temp/cache directory available, cannot install."));
+		fl_alert("%s", $("No temp/cache directory available, cannot install."));
 		return FALSE;
 	}
 
@@ -5932,7 +5932,7 @@ static BOOL InstallFM(FMEntry *fm)
 	{
 		DelTree( tmpdir.c_str() );
 		fl_message_position(pMainWnd);
-		fl_alert($("Failed to move install dir to final location, install aborted."));
+		fl_alert("%s", $("Failed to move install dir to final location, install aborted."));
 		return FALSE;
 	}
 
@@ -6090,7 +6090,7 @@ static BOOL UninstallFM(FMEntry *fm)
 	if ( g_sTempDir.empty() )
 	{
 		// shouldn't get here
-		fl_alert($("No temp/cache directory available, cannot uninstall."));
+		fl_alert("%s", $("No temp/cache directory available, cannot uninstall."));
 		return FALSE;
 	}
 
@@ -6101,10 +6101,11 @@ static BOOL UninstallFM(FMEntry *fm)
 	}
 
 	const int backup = fl_choice(
+		"%s", fl_cancel, fl_yes, fl_no,
 		g_cfg.bDiffBackups
 			? $("Backup all modified/added/removed files (including savegames and screenshots)?")
-			: $("Backup savegames and screenshots?"),
-		fl_cancel, fl_yes, fl_no);
+			: $("Backup savegames and screenshots?")
+		);
 	if (!backup)
 		return FALSE;
 
@@ -6121,7 +6122,7 @@ static BOOL UninstallFM(FMEntry *fm)
 
 		fl_message_position(pMainWnd);
 
-		if ( !fl_choice(msg, fl_cancel, fl_ok, NULL) )
+		if ( !fl_choice("%s", fl_cancel, fl_ok, NULL, msg) )
 			return FALSE;
 
 		// do backup first, only if that succeeded we do a "deltree"
@@ -6130,7 +6131,7 @@ static BOOL UninstallFM(FMEntry *fm)
 		if (_snprintf_s(installdir, sizeof(installdir), _TRUNCATE, "%s" DIRSEP_STR "%s", GetRootPath(), fm->name) == -1)
 		{
 			fl_message_position(pMainWnd);
-			fl_alert($("Path too long, uninstall aborted."));
+			fl_alert("%s", $("Path too long, uninstall aborted."));
 			return FALSE;
 		}
 
@@ -6145,7 +6146,7 @@ static BOOL UninstallFM(FMEntry *fm)
 		if ( !EnumFileDiffInfo(installdir, strlen(installdir)) )
 		{
 			fl_message_position(pMainWnd);
-			fl_alert($("Failed to scan files to make backup, uninstall aborted."));
+			fl_alert("%s", $("Failed to scan files to make backup, uninstall aborted."));
 			bRet = FALSE;
 		}
 		else
@@ -6174,7 +6175,7 @@ static BOOL UninstallFM(FMEntry *fm)
 				if ( !BackupDiffSet(fm) )
 				{
 					fl_message_position(pMainWnd);
-					fl_alert($("Failed to backup changed files, uninstall aborted."));
+					fl_alert("%s", $("Failed to backup changed files, uninstall aborted."));
 
 					bRet = FALSE;
 				}
@@ -6185,7 +6186,7 @@ static BOOL UninstallFM(FMEntry *fm)
 					if (!bRet)
 					{
 						fl_message_position(pMainWnd);
-						fl_alert(bBackupSaves
+						fl_alert("%s", bBackupSaves
 							? $("Failed to delete install directory, uninstall aborted (backup archive was still created/updated).")
 							: $("Failed to delete install directory, uninstall aborted."));
 					}
@@ -6206,20 +6207,20 @@ static BOOL UninstallFM(FMEntry *fm)
 
 		fl_message_position(pMainWnd);
 
-		if ( !fl_choice(msg, fl_cancel, fl_ok, NULL) )
+		if ( !fl_choice("%s", fl_cancel, fl_ok, NULL, msg) )
 			return FALSE;
 
 		// do backup first, only if that succeeded we do a "deltree"
 		if (bBackupSaves && !BackupSavesToArchive(fm))
 		{
-			fl_alert($("Failed to backup savegames and screenshots, uninstall aborted."));
+			fl_alert("%s", $("Failed to backup savegames and screenshots, uninstall aborted."));
 			return FALSE;
 		}
 
 		bRet = FmDelTree(fm);
 
 		if (!bRet)
-			fl_alert(bBackupSaves
+			fl_alert("%s", bBackupSaves
 				? $("Failed to delete install directory, uninstall aborted (backup archive was still created/updated)")
 				: $("Failed to delete install directory, uninstall aborted"));
 	}
@@ -6882,7 +6883,7 @@ public:
 		case CMD_FontSizeNormal:
 		case CMD_FontSizeLarge:
 			fl_message_position(pMainWnd);
-			if ( fl_choice($("Restart is required to change font size. Change size and exit?"), fl_cancel, fl_ok, NULL) )
+			if ( fl_choice("%s", fl_cancel, fl_ok, NULL, $("Restart is required to change font size. Change size and exit?")) )
 			{
 				g_cfg.bLargeFont = (cmd_id == CMD_FontSizeLarge);
 				g_cfg.OnModified();
@@ -6957,12 +6958,12 @@ public:
 			if ( !SaveDb() )
 			{
 				fl_message_position(pMainWnd);
-				fl_alert($("Failed to save \"fmsel.ini\"."));
+				fl_alert("%s", $("Failed to save \"fmsel.ini\"."));
 			}
 			break;
 		case CMD_CleanDb:
 			fl_message_position(pMainWnd);
-			if ( fl_choice($("Are you sure you want to clean all\nobsolete entries from the database?"), fl_no, fl_yes, NULL) )
+			if ( fl_choice("%s", fl_no, fl_yes, NULL, $("Are you sure you want to clean all\nobsolete entries from the database?")) )
 				CleanDb();
 			break;
 
@@ -7025,7 +7026,7 @@ public:
 			else if (cmd_id >= CMD_WidgetColors0 && cmd_id <= CMD_WidgetColorsLast)
 			{
 				fl_message_position(pMainWnd);
-				if ( fl_choice($("Restart is required to change color scheme. Change colors and exit?"), fl_cancel, fl_ok, NULL) )
+				if ( fl_choice("%s", fl_cancel, fl_ok, NULL, $("Restart is required to change color scheme. Change colors and exit?")) )
 				{
 					g_cfg.uicolors = cmd_id-CMD_WidgetColors0;
 					g_cfg.OnModified();
@@ -8261,7 +8262,7 @@ public:
 					if ( !AutoSelectInfoFile(fm) )
 					{
 						fl_message_position(pMainWnd);
-						fl_alert($("Couldn't find any info file."));
+						fl_alert("%s", $("Couldn't find any info file."));
 						break;
 					}
 
@@ -9499,7 +9500,7 @@ public:
 		string html;
 		int i, j;
 		char buff[1024];
-		char buff2[512];
+		char buff2[2048];
 
 		RefreshTagDb();
 
@@ -10934,7 +10935,7 @@ retry:
 	if ( str.empty() )
 	{
 		fl_message_position(pMainWnd);
-		fl_alert($("The root dir is not a valid archive path."));
+		fl_alert("%s", $("The root dir is not a valid archive path."));
 		return;
 	}
 
@@ -10942,7 +10943,7 @@ retry:
 	if ( IsArchivePathSameAsFmPath( str.c_str() ) )
 	{
 		fl_message_position(pMainWnd);
-		fl_alert($("The archive path may not be inside the FM path, or vice versa."));
+		fl_alert("%s", $("The archive path may not be inside the FM path, or vice versa."));
 		goto retry;
 	}
 
@@ -10950,7 +10951,7 @@ retry:
 	{
 		fl_message_position(pMainWnd);
 
-		if (g_cfg.bRepoOK && !fl_choice($("You will lose access to all archives in the current path.\nAre you sure you want to change archive path?"), fl_cancel, fl_ok, NULL))
+		if (g_cfg.bRepoOK && !fl_choice("%s", fl_cancel, fl_ok, NULL, $("You will lose access to all archives in the current path.\nAre you sure you want to change archive path?")))
 			return;
 
 		// to help avoid confusion for first time users, make sure archived FMs are visible after the archive path
@@ -10964,7 +10965,7 @@ retry:
 		if (!bStartupConfig)
 		{
 			fl_message_position(pMainWnd);
-			fl_message($("Changing the archive path requires a restart. FMSel will now exit."));
+			fl_message("%s", $("Changing the archive path requires a restart. FMSel will now exit."));
 
 			OnExit(NULL, NULL);
 		}
@@ -11125,7 +11126,7 @@ static int DoImportBatchFmIniDialog()
 			else
 			{
 				fl_message_position(pMainWnd);
-				fl_alert($("No data selected for import."));
+				fl_alert("%s", $("No data selected for import."));
 			}
 		}
 		else if (o == typecheck[TAGS_IND])
@@ -11168,12 +11169,12 @@ static int DoImportBatchFmIniDialog()
 
 	if (mode & IMP_ModeOverwrite)
 	{
-		if ( !fl_choice($("Are you sure you want to overwrite existing data?"), fl_no, fl_yes, NULL) )
+		if ( !fl_choice("%s", fl_no, fl_yes, NULL, $("Are you sure you want to overwrite existing data?")) )
 			return 0;
 	}
 	else if ((mode & IMP_ModeFillAddTags) && (mode & IMP_Tags))
 	{
-		if ( !fl_choice($("Are you sure you want add any imported tags to existing ones?"), fl_no, fl_yes, NULL) )
+		if ( !fl_choice("%s", fl_no, fl_yes, NULL, $("Are you sure you want add any imported tags to existing ones?")) )
 			return 0;
 	}
 
@@ -11656,7 +11657,7 @@ static BOOL TagEditorHasChanges(int *pValidationFailedOnPage = NULL)
 			{
 				*pValidationFailedOnPage = TABPAGE_MISC;
 				fl_message_position(pMainWnd);
-				fl_alert($("Incomplete release date specified."));
+				fl_alert("%s", $("Incomplete release date specified."));
 			}
 			return 2;
 		}
@@ -11672,7 +11673,7 @@ invalid_date:
 			{
 				*pValidationFailedOnPage = TABPAGE_MISC;
 				fl_message_position(pMainWnd);
-				fl_alert($("Invalid release date specified."));
+				fl_alert("%s", $("Invalid release date specified."));
 			}
 			return 2;
 		}
@@ -11806,7 +11807,7 @@ static void OnCancelTagEditor(Fl_Button *, void *)
 {
 	fl_message_position(pMainWnd);
 
-	if (TagEditorHasChanges() && !fl_choice($("Discard changes?"), fl_cancel, fl_ok, NULL) )
+	if (TagEditorHasChanges() && !fl_choice("%s", fl_cancel, fl_ok, NULL, $("Discard changes?")) )
 		return;
 
 	CloseTagEditor();
@@ -12535,7 +12536,7 @@ static void PlayFM(BOOL bSetInProgress)
 	if (!fm)
 	{
 		fl_message_position(pMainWnd);
-		fl_message($("No FM selected."));
+		fl_message("%s", $("No FM selected."));
 		return;
 	}
 
@@ -12672,7 +12673,7 @@ static void ShowBadDirWarning()
 	}
 
 	fl_message_position(pMainWnd);
-	fl_alert( s.c_str() );
+	fl_alert("%s", s.c_str());
 
 	g_invalidDirs.clear();
 }
@@ -12706,12 +12707,11 @@ static BOOL ValidateArchiveRepo(BOOL bFirstRun)
 		fl_message_position(pMainWnd);
 
 		// on first run ask if user wants to configure a repo path
-		if (bFirstRun && fl_choice(
+		if (bFirstRun && fl_choice("%s", fl_no, fl_yes, NULL,
 			$("Would you like to configure an FM archive path now?\n\n"
 			"(If you have a directory where you keep a collection of\n"
 			"archived/zipped FMs, FMSel will be able to install FMs\n"
-			"from it.)"),
-			fl_no, fl_yes, NULL) )
+			"from it.)")) )
 		{
 			ConfigArchivePath(TRUE);
 
@@ -12735,7 +12735,7 @@ static BOOL ValidateArchiveRepo(BOOL bFirstRun)
 		// check that repo path isn't the same as the FM path
 		if ( IsArchivePathSameAsFmPath( g_cfg.archiveRepo.c_str() ) )
 		{
-			fl_alert($("The archive path may not be inside the FM path, or vice versa.\nArchive support disabled. Reconfigure the archive path."));
+			fl_alert("%s", $("The archive path may not be inside the FM path, or vice versa.\nArchive support disabled. Reconfigure the archive path."));
 			return FALSE;
 		}
 
@@ -13399,7 +13399,7 @@ extern "C" int FMSELAPI SelectFM(sFMSelectorData *data)
 		if ( !SaveDb() )
 		{
 			fl_message_position(pMainWnd);
-			fl_alert($("Failed to save database (fmsel.ini). Make sure you have write access\n"
+			fl_alert("%s", $("Failed to save database (fmsel.ini). Make sure you have write access\n"
 				"to the file and FM path and that there's enough free disk space\n"
 				"before closing this dialog, otherwise any changes will be lost."));
 

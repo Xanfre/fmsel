@@ -909,7 +909,7 @@ static bool InitArchiveLib(BOOL bSilent = FALSE)
 			g_p7zLib = NULL;
 			g_bFailed7z = 1;
 			if (!bSilent)
-				fl_alert($("Failed to initialize 7-zip library, archive support will be disabled."));
+				fl_alert("%s", $("Failed to initialize 7-zip library, archive support will be disabled."));
 			return false;
 		}
 
@@ -920,7 +920,7 @@ static bool InitArchiveLib(BOOL bSilent = FALSE)
 			g_p7zLib = NULL;
 			g_bFailed7z = 1;
 			if (!bSilent)
-				fl_alert($("Failed to initialize 7-zip library, archive support will be disabled."));
+				fl_alert("%s", $("Failed to initialize 7-zip library, archive support will be disabled."));
 			return false;
 		}
 

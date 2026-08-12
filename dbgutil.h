@@ -62,7 +62,7 @@ static void DbgPrintf(const char *fmt, ...)
 #ifdef _WIN32
 	OutputDebugStringA(buff);
 #else
-	fprintf(stderr, buff);
+	fprintf(stderr, "%s\n", buff);
 #endif
 }
 
@@ -77,7 +77,7 @@ static void DbgPrintfW(wchar_t *fmt, ...)
 #ifdef _WIN32
 	OutputDebugStringW(buff);
 #else
-	fwprintf(stderr, buff);
+	fwprintf(stderr, L"%s\n", buff);
 #endif
 }
 
