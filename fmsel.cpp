@@ -1972,7 +1972,7 @@ static void GenerateArchiveInstallName(const char *name, FMEntry *fm)
 				strcat(altname, seq);
 			}
 			else
-				_snprintf_s(altname, sizeof(altname), _TRUNCATE "%s%s", ftitle, seq);
+				_snprintf_s(altname, sizeof(altname), _TRUNCATE, "%s%s", ftitle, seq);
 
 			if ( !GetFM(altname) )
 			{
