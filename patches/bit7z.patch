@@ -1,0 +1,26 @@
+diff --git a/cmake/CompilerOptions.cmake b/cmake/CompilerOptions.cmake
+index 5e561b99..7eab2b3f 100644
+--- a/cmake/CompilerOptions.cmake
++++ b/cmake/CompilerOptions.cmake
+@@ -129,8 +129,6 @@ if( CMAKE_CXX_COMPILER_ID MATCHES "GNU" )
+         target_compile_options( ${LIB_TARGET} PRIVATE -Wnon-virtual-dtor )
+     endif()
+     if( MINGW )
+-        # We need compatibility with Vista and later, as we use FILE_ATTRIBUTE_TAG_INFO/GetFileInformationByHandleEx.
+-        target_compile_definitions( ${LIB_TARGET} PRIVATE WINVER=0x0600 _WIN32_WINNT=0x600 )
+         # Some versions of MinGW might complain that the library is too big when linking to it.
+         # Using -Wa,-mbig-obj fixes the linking error.
+         # (https://digitalkarabela.com/mingw-w64-how-to-fix-file-too-big-too-many-sections/).
+diff --git a/src/internal/filehandle.cpp b/src/internal/filehandle.cpp
+index 4cff4113..e9e9669b 100644
+--- a/src/internal/filehandle.cpp
++++ b/src/internal/filehandle.cpp
+@@ -59,7 +59,7 @@ auto openFile( const native_string& filePath, OpenFlags openFlags ) -> handle_t
+         const std::error_code error = lastErrorCode();
+         throw BitException( "Could not open the file", error, pathToTstring( filePath ) );
+     }
+-#ifdef _WIN32
++#if defined(_WIN32) && defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0600)
+     // Emulate the strict POSIX O_NOFOLLOW semantics: fail only on symlinks, not on other
+     // reparse-point kinds (junctions, mount points, etc.), matching S_IFLNK on Unix.
+     if ( hasFlag( openFlags.extraFlag, ExtraFlag::NoFollow ) ) {

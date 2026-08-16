@@ -54,6 +54,7 @@ CPMAddPackage(
 	GIT_REPOSITORY "https://github.com/rikyoz/bit7z"
 	VERSION "4.1.0"
 	OPTIONS "${BIT7Z_OPTIONS}"
+	PATCHES "${CMAKE_CURRENT_SOURCE_DIR}/patches/bit7z.patch"
 )
 if (NOT WIN32)
 	set_property(TARGET bit7z PROPERTY POSITION_INDEPENDENT_CODE ON)
